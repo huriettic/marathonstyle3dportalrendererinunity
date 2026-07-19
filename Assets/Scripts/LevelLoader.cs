@@ -342,8 +342,8 @@ public class LevelLoader : MonoBehaviour
 
         for (int a = portal.edgeStartIndex; a < portal.edgeStartIndex + portal.edgeCount; a += 2)
         {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a]].x, LevelLists.vertices[LevelLists.edges[a]].y, LevelLists.vertices[LevelLists.edges[a]].z, 1f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a + 1]].x, LevelLists.vertices[LevelLists.edges[a + 1]].y, LevelLists.vertices[LevelLists.edges[a + 1]].z, 1f);
+            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a]].x, LevelLists.vertices[LevelLists.edges[a]].y, LevelLists.vertices[LevelLists.edges[a]].z, 1.0f);
+            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a + 1]].x, LevelLists.vertices[LevelLists.edges[a + 1]].y, LevelLists.vertices[LevelLists.edges[a + 1]].z, 1.0f);
 
             Vector4 v0clip = projection * v0view;
             Vector4 v1clip = projection * v1view;
@@ -356,7 +356,7 @@ public class LevelLoader : MonoBehaviour
             processboolcount += 2;
         }
 
-        for (int b = 0; b < 4; b++)
+        for (int b = 0; b < 6; b++)
         {
             int intersection = 0;
 
@@ -397,6 +397,16 @@ public class LevelLoader : MonoBehaviour
                     case 3: // Top
                         d0 = rectangle.yMax * v0.w - v0.y;
                         d1 = rectangle.yMax * v1.w - v1.y;
+                        break;
+
+                    case 4: // Near
+                        d0 = v0.z;
+                        d1 = v1.z;
+                        break;
+
+                    case 5: // Far
+                        d0 = v0.w - v0.z;
+                        d1 = v1.w - v1.z;
                         break;
 
                     default:
@@ -524,7 +534,7 @@ public class LevelLoader : MonoBehaviour
             processbool[processboolcount + 2] = true;
             processboolcount += 3;
 
-            for (int b = 0; b < 4; b++)
+            for (int b = 0; b < 6; b++)
             {
                 int AddTriangles = 0;
 
@@ -577,6 +587,18 @@ public class LevelLoader : MonoBehaviour
                             d0 = rectangle.yMax * v0.w - v0.y;
                             d1 = rectangle.yMax * v1.w - v1.y;
                             d2 = rectangle.yMax * v2.w - v2.y;
+                            break;
+
+                        case 4: // Near
+                            d0 = v0.z;
+                            d1 = v1.z;
+                            d2 = v2.z;
+                            break;
+
+                        case 5: // Far
+                            d0 = v0.w - v0.z;
+                            d1 = v1.w - v1.z;
+                            d2 = v2.w - v2.z;
                             break;
 
                         default:
@@ -1051,6 +1073,26 @@ public class LevelLoader : MonoBehaviour
                     if (rendersector != -1)
                     {
                         ClipTrianglesWithRectangle(rectangleIN, polygon);
+
+                        //for (int i = polygon.triangleStartIndex; i < polygon.triangleStartIndex + polygon.triangleCount; i += 3)
+                        //{
+                        //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i]]);
+                        //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i + 1]]);
+                        //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i + 2]]);
+
+                        //    OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[i]]);
+                        //    OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[i + 1]]);
+                        //    OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[i + 2]]);
+
+                        //    OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[i]]);
+                        //    OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[i + 1]]);
+                        //    OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[i + 2]]);
+
+                        //    OpaqueTriangles.Add(combinedTriangles);
+                        //    OpaqueTriangles.Add(combinedTriangles + 1);
+                        //    OpaqueTriangles.Add(combinedTriangles + 2);
+                        //    combinedTriangles += 3;
+                        //}
 
                         continue;
                     }
