@@ -40,9 +40,6 @@ public struct SectorMeta
     public int polygonStartIndex;
     public int polygonCount;
 
-    public int planeStartIndex;
-    public int planeCount;
-
     public int sectorId;
 };
 
@@ -2028,8 +2025,6 @@ public class LevelLoader : MonoBehaviour
                 sectorId = i,
                 polygonStartIndex = polygonStart,
                 polygonCount = polygonCount,
-                planeStartIndex = 0,
-                planeCount = 4
             };
 
             LevelLists.sectors.Add(sectorMeta);
