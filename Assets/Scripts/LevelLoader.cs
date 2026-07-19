@@ -114,7 +114,9 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> flooruvs = new List<Vector3>();
     List<Vector3> ceilinguvs = new List<Vector3>();
     GameObject RenderMesh;
-    Rect CombinedRectangle;
+    Rect combinedRectangle;
+    Rect rectangleIN;
+    Rect rectangleOUT;
     Matrix4x4 view;
     Matrix4x4 projection;
 
@@ -148,6 +150,22 @@ public class LevelLoader : MonoBehaviour
         public List<SectorMeta> sectors = new List<SectorMeta>();
         public List<StartPosition> positions = new List<StartPosition>();
     }
+
+    //void OnGUI()
+    //{
+    //    // Debug portal rectangles
+
+    //    float xmin = (rectangleIN.xMin * 0.5f + 0.5f) * Screen.width;
+    //    float xmax = (rectangleIN.xMax * 0.5f + 0.5f) * Screen.width;
+    //    float ymin = (rectangleIN.yMin * 0.5f + 0.5f) * Screen.height;
+    //    float ymax = (rectangleIN.yMax * 0.5f + 0.5f) * Screen.height;
+
+    //    float yminflip = Screen.height - ymax;
+    //    float ymaxflip = Screen.height - ymin;
+
+    //    GUI.color = Color.green;
+    //    GUI.DrawTexture(new Rect(xmin, yminflip, xmax - xmin, ymaxflip - yminflip), Texture2D.whiteTexture);
+    //}
 
     void Start()
     {
@@ -1053,7 +1071,7 @@ public class LevelLoader : MonoBehaviour
             {
                 SectorMeta sector = ListOfSectorLists[input][b];
 
-                Rect rectangleIN = ListOfRectangleLists[input][b];
+                rectangleIN = ListOfRectangleLists[input][b];
 
                 for (int c = sector.polygonStartIndex; c < sector.polygonStartIndex + sector.polygonCount; c++)
                 {
@@ -1076,6 +1094,8 @@ public class LevelLoader : MonoBehaviour
 
                         //for (int i = polygon.triangleStartIndex; i < polygon.triangleStartIndex + polygon.triangleCount; i += 3)
                         //{
+                        //    // Debug triangles
+
                         //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i]]);
                         //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i + 1]]);
                         //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i + 2]]);
@@ -1123,11 +1143,11 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        Rect rectangleOUT = MakeRectangle(OutEdgeVertices);
+                        rectangleOUT = MakeRectangle(OutEdgeVertices);
 
-                        if (IntersectRectangles(rectangleIN, rectangleOUT, out CombinedRectangle))
+                        if (IntersectRectangles(rectangleIN, rectangleOUT, out combinedRectangle))
                         {
-                            ListOfRectangleLists[output].Add(CombinedRectangle);
+                            ListOfRectangleLists[output].Add(combinedRectangle);
 
                             NextSector = sectorpolygon;
 
@@ -1139,16 +1159,16 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public bool IntersectRectangles(Rect a, Rect b, out Rect combinedRectangle)
+    public bool IntersectRectangles(Rect a, Rect b, out Rect combined)
     {
-        float xMin = Mathf.Max(a.xMin, b.xMin);
-        float yMin = Mathf.Max(a.yMin, b.yMin);
-        float xMax = Mathf.Min(a.xMax, b.xMax);
-        float yMax = Mathf.Min(a.yMax, b.yMax);
+        float xmin = Mathf.Max(a.xMin, b.xMin);
+        float ymin = Mathf.Max(a.yMin, b.yMin);
+        float xmax = Mathf.Min(a.xMax, b.xMax);
+        float ymax = Mathf.Min(a.yMax, b.yMax);
 
-        combinedRectangle = Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+        combined = Rect.MinMaxRect(xmin, ymin, xmax, ymax);
 
-        if (xMax <= xMin || yMax <= yMin)
+        if (xmax <= xmin || ymax <= ymin)
         {
             return false;
         }
@@ -1158,37 +1178,37 @@ public class LevelLoader : MonoBehaviour
 
     public Rect MakeRectangle(List<Vector3> ndcEdges)
     {
-        float minX = float.PositiveInfinity;
-        float minY = float.PositiveInfinity;
-        float maxX = float.NegativeInfinity;
-        float maxY = float.NegativeInfinity;
+        float xmin = float.PositiveInfinity;
+        float ymin = float.PositiveInfinity;
+        float xmax = float.NegativeInfinity;
+        float ymax = float.NegativeInfinity;
 
         for (int i = 0; i < ndcEdges.Count; i++)
         {
-            Vector3 e = ndcEdges[i];
+            Vector3 v = ndcEdges[i];
 
-            if (e.x < minX)
+            if (v.x < xmin)
             {
-                minX = e.x;
+                xmin = v.x;
             }
 
-            if (e.x > maxX) 
+            if (v.x > xmax) 
             {
-                maxX = e.x;
+                xmax = v.x;
             }
 
-            if (e.y < minY)
+            if (v.y < ymin)
             {
-                minY = e.y;
+                ymin = v.y;
             }
 
-            if (e.y > maxY)
+            if (v.y > ymax)
             {
-                maxY = e.y;
+                ymax = v.y;
             }
         }
 
-        return Rect.MinMaxRect(minX, minY, maxX, maxY);
+        return Rect.MinMaxRect(xmin, ymin, xmax, ymax);
     }
 
     public void PlayerStart()
