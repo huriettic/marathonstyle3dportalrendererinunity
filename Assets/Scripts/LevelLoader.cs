@@ -336,7 +336,7 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
-    public void ClipEdgesWithRectangle(Rect rectangle, SectorMeta planes, PolygonMeta portal)
+    public void ClipEdgesWithRectangle(Rect rectangle, PolygonMeta portal)
     {
         OutEdgeVertices.Clear();
 
@@ -1077,7 +1077,7 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        ClipEdgesWithRectangle(rectangleIN, sector, polygon);
+                        ClipEdgesWithRectangle(rectangleIN, polygon);
 
                         if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
                         {
