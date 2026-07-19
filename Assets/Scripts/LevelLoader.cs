@@ -336,7 +336,7 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
-    public void ClipEdgesWithW(SectorMeta planes, PolygonMeta portal)
+    public void ClipEdgesWithRectangle(Rect rectangle, SectorMeta planes, PolygonMeta portal)
     {
         OutEdgeVertices.Clear();
 
@@ -359,14 +359,14 @@ public class LevelLoader : MonoBehaviour
             processboolcount += 2;
         }
 
-        for (int b = 0; b < 6; b++)
+        for (int b = 0; b < 4; b++)
         {
             int intersection = 0;
 
             int temporaryverticescount = 0;
 
+            Vector4 intersectionPoint0 = Vector4.zero;
             Vector4 intersectionPoint1 = Vector4.zero;
-            Vector4 intersectionPoint2 = Vector4.zero;
 
             for (int c = 0; c < processverticescount; c += 2)
             {
@@ -375,51 +375,41 @@ public class LevelLoader : MonoBehaviour
                     continue;
                 }
 
-                Vector4 e1 = processvertices[c];
-                Vector4 e2 = processvertices[c + 1];
+                Vector4 v0 = processvertices[c];
+                Vector4 v1 = processvertices[c + 1];
 
-                float d1, d2;
+                float d0, d1;
 
                 switch (b)
                 {
                     case 0: // Left
-                        d1 = e1.x + e1.w;
-                        d2 = e2.x + e2.w;
+                        d0 = v0.x - rectangle.xMin * v0.w;
+                        d1 = v1.x - rectangle.xMin * v1.w;
                         break;
 
                     case 1: // Right
-                        d1 = -e1.x + e1.w;
-                        d2 = -e2.x + e2.w;
+                        d0 = rectangle.xMax * v0.w - v0.x;
+                        d1 = rectangle.xMax * v1.w - v1.x;
                         break;
 
                     case 2: // Bottom
-                        d1 = e1.y + e1.w;
-                        d2 = e2.y + e2.w;
+                        d0 = v0.y - rectangle.yMin * v0.w;
+                        d1 = v1.y - rectangle.yMin * v1.w;
                         break;
 
                     case 3: // Top
-                        d1 = -e1.y + e1.w;
-                        d2 = -e2.y + e2.w;
-                        break;
-
-                    case 4: // Near
-                        d1 = e1.z;
-                        d2 = e2.z;
-                        break;
-
-                    case 5: // Far
-                        d1 = -e1.z + e1.w;
-                        d2 = -e2.z + e2.w;
+                        d0 = rectangle.yMax * v0.w - v0.y;
+                        d1 = rectangle.yMax * v1.w - v1.y;
                         break;
 
                     default:
+                        d0 = 0;
                         d1 = 0;
-                        d2 = 0;
                         break;
                 }
 
-                bool b0 = d1 >= 0;
-                bool b1 = d2 >= 0;
+                bool b0 = d0 >= 0;
+                bool b1 = d1 >= 0;
 
                 if (b0 && b1)
                 {
@@ -427,28 +417,28 @@ public class LevelLoader : MonoBehaviour
                 }
                 else if ((b0 && !b1) || (!b0 && b1))
                 {
+                    Vector4 point0;
                     Vector4 point1;
-                    Vector4 point2;
 
-                    float t = d1 / (d1 - d2);
+                    float t = d0 / (d0 - d1);
 
-                    Vector4 intersectionPoint = Vector4.Lerp(e1, e2, t);
+                    Vector4 intersectionPoint = Vector4.Lerp(v0, v1, t);
 
                     if (b0)
                     {
-                        point1 = e1;
-                        point2 = intersectionPoint;
-                        intersectionPoint1 = intersectionPoint;
+                        point0 = v0;
+                        point1 = intersectionPoint;
+                        intersectionPoint0 = intersectionPoint;
                     }
                     else
                     {
-                        point1 = intersectionPoint;
-                        point2 = e2;
-                        intersectionPoint2 = intersectionPoint;
+                        point0 = intersectionPoint;
+                        point1 = v1;
+                        intersectionPoint1 = intersectionPoint;
                     }
 
-                    temporaryvertices[temporaryverticescount] = point1;
-                    temporaryvertices[temporaryverticescount + 1] = point2;
+                    temporaryvertices[temporaryverticescount] = point0;
+                    temporaryvertices[temporaryverticescount + 1] = point1;
                     temporaryverticescount += 2;
 
                     processbool[c] = false;
@@ -475,8 +465,8 @@ public class LevelLoader : MonoBehaviour
                     processboolcount += 2;
                 }
 
-                processvertices[processverticescount] = intersectionPoint1;
-                processvertices[processverticescount + 1] = intersectionPoint2;
+                processvertices[processverticescount] = intersectionPoint0;
+                processvertices[processverticescount + 1] = intersectionPoint1;
                 processverticescount += 2;
                 processbool[processboolcount] = true;
                 processbool[processboolcount + 1] = true;
@@ -488,14 +478,14 @@ public class LevelLoader : MonoBehaviour
         {
             if (processbool[e] == true && processbool[e + 1] == true)
             {
-                Vector4 v0 = processvertices[e];
-                Vector4 v1 = processvertices[e + 1];
+                Vector4 clip0 = processvertices[e];
+                Vector4 clip1 = processvertices[e + 1];
 
-                float invw0 = 1.0f / v0.w;
-                float invw1 = 1.0f / v1.w;
+                float invw0 = 1.0f / clip0.w;
+                float invw1 = 1.0f / clip1.w;
 
-                Vector3 ndc0 = new Vector3(v0.x * invw0, v0.y * invw0, v0.z * invw0);
-                Vector3 ndc1 = new Vector3(v1.x * invw1, v1.y * invw1, v1.z * invw1);
+                Vector3 ndc0 = new Vector3(clip0.x * invw0, clip0.y * invw0, clip0.z * invw0);
+                Vector3 ndc1 = new Vector3(clip1.x * invw1, clip1.y * invw1, clip1.z * invw1);
 
                 OutEdgeVertices.Add(ndc0);
                 OutEdgeVertices.Add(ndc1);
@@ -507,9 +497,9 @@ public class LevelLoader : MonoBehaviour
     {
         for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
         {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1f);
-            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1f);
+            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1.0f);
+            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1.0f);
+            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1.0f);
 
             Vector4 v0clip = projection * v0view;
             Vector4 v1clip = projection * v1view;
@@ -1087,7 +1077,7 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        ClipEdgesWithW(sector, polygon);
+                        ClipEdgesWithRectangle(rectangleIN, sector, polygon);
 
                         if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
                         {
