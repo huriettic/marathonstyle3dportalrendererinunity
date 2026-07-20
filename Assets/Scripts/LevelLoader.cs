@@ -3,6 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [Serializable]
+public struct Triangle
+{
+    public Vector4 v0, v1, v2;
+    public Vector3 uv0, uv1, uv2;
+    public Vector3 n0, n1, n2;
+};
+
+[Serializable]
 public struct MathematicalPlane
 {
     public Vector3 normal;
@@ -71,22 +79,10 @@ public class LevelLoader : MonoBehaviour
     List<int> ceilingtri = new List<int>();
     List<Vector3> floorverts = new List<Vector3>();
     List<int> floortri = new List<int>();
-    GameObject OpaqueObjects;
     Material opaquematerial;
-    Mesh opaquemesh;
-    Material linematerial;
     List<MeshCollider> CollisionSectors = new List<MeshCollider>();
-    List<Vector3> OpaqueVertices = new List<Vector3>();
-    List<Vector3> OpaqueTextures = new List<Vector3>();
-    List<Vector3> OpaqueNormals = new List<Vector3>();
-    List<int> OpaqueTriangles = new List<int>();
     List<Mesh> CollisionMesh = new List<Mesh>();
-    List<Mesh> OpaqueMesh = new List<Mesh>();
     GameObject CollisionObjects;
-    List<GameObject> OpaqueSectors = new List<GameObject>();
-    List<Mesh> EdgeMesh = new List<Mesh>();
-    GameObject EdgeObjects;
-    List<GameObject> Edges = new List<GameObject>();
     bool[] processbool;
     Vector4[] processvertices;
     Vector3[] processtextures;
@@ -105,7 +101,6 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> OutEdgeVertices = new List<Vector3>();
     bool radius;
     bool check;
-    int combinedTriangles;
     float planeDistance;
     double Ceiling;
     double Floor;
@@ -113,12 +108,15 @@ public class LevelLoader : MonoBehaviour
     MathematicalPlane TopPlane;
     List<Vector3> flooruvs = new List<Vector3>();
     List<Vector3> ceilinguvs = new List<Vector3>();
-    GameObject RenderMesh;
     Rect combinedRectangle;
-    Rect rectangleIN;
-    Rect rectangleOUT;
     Matrix4x4 view;
     Matrix4x4 projection;
+    GraphicsBuffer triBuffer;
+    List<Triangle> outTriangles = new List<Triangle>();
+    List<Vector3> colliderVertices = new List<Vector3>();
+    List<int> colliderTriangles = new List<int>();
+    List<Rect> debugRectangles = new List<Rect>();
+    Texture2D linetexture;
 
     [Serializable]
     public class Sector
@@ -151,42 +149,57 @@ public class LevelLoader : MonoBehaviour
         public List<StartPosition> positions = new List<StartPosition>();
     }
 
-    //void OnGUI()
-    //{
-    //    // Debug portal rectangles
+    void OnGUI()
+    {
+        if (debug)
+        {
+            GUI.color = Color.blue;
 
-    //    float xmin = (rectangleIN.xMin * 0.5f + 0.5f) * Screen.width;
-    //    float xmax = (rectangleIN.xMax * 0.5f + 0.5f) * Screen.width;
-    //    float ymin = (rectangleIN.yMin * 0.5f + 0.5f) * Screen.height;
-    //    float ymax = (rectangleIN.yMax * 0.5f + 0.5f) * Screen.height;
+            for (int i = 0; i < debugRectangles.Count; i++)
+            {
+                Rect rectangle = debugRectangles[i];
 
-    //    float yminflip = Screen.height - ymax;
-    //    float ymaxflip = Screen.height - ymin;
+                float xmin = (rectangle.xMin * 0.5f + 0.5f) * Screen.width;
+                float xmax = (rectangle.xMax * 0.5f + 0.5f) * Screen.width;
+                float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
+                float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
 
-    //    GUI.color = Color.green;
-    //    GUI.DrawTexture(new Rect(xmin, yminflip, xmax - xmin, ymaxflip - yminflip), Texture2D.whiteTexture);
-    //}
+                MakeLine(xmin, ymin, xmin, ymax, 5.0f); // left
+                MakeLine(xmax, ymin, xmax, ymax, 5.0f); // right
+                MakeLine(xmin, ymin, xmax, ymin, 5.0f); // bottom
+                MakeLine(xmin, ymax, xmax, ymax, 5.0f); // top
+            }
+        }
+    }
+
+    void OnDestroy()
+    {
+        triBuffer?.Dispose();
+    }
+
+    void OnRenderObject()
+    {
+        triBuffer.SetData(outTriangles);
+
+        opaquematerial.SetPass(0);
+        Graphics.DrawProceduralNow(MeshTopology.Triangles, outTriangles.Count * 3);
+    }
 
     void Start()
     {
-        LoadFromFile();
+        CollisionObjects = new GameObject("Collision Meshes");
 
         LevelLists = new TopLevelLists();
 
-        CreateGameObjects();
+        LoadFromFile();
+
+        CreateMaterial();
 
         BuildGeometry();
 
         BuildObjects();
 
         BuildColliders();
-
-        if (debug == true)
-        {
-            BuildEdges();
-
-            BuildOpaques();
-        }
 
         PlayerStart();
 
@@ -218,45 +231,46 @@ public class LevelLoader : MonoBehaviour
         {
             Physics.IgnoreCollision(Player, CollisionSectors[LevelLists.sectors[i].sectorId], true);
         }
+
+        int strideTriangle = System.Runtime.InteropServices.Marshal.SizeOf(typeof(Triangle));
+
+        triBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, (LevelLists.sectors.Count * 32) * 128, strideTriangle);
+
+        opaquematerial.SetBuffer("outputTriangleBuffer", triBuffer);
     }
 
     void Update()
     {
-        if (debug == false)
+        PlayerInput();
+
+        if (Cam.transform.hasChanged)
         {
-            PlayerInput();
+            view = Cam.worldToCameraMatrix;
 
-            if (Cam.transform.hasChanged)
-            {
-                view = Cam.worldToCameraMatrix;
+            projection = GL.GetGPUProjectionMatrix(Cam.projectionMatrix, true);
 
-                projection = GL.GetGPUProjectionMatrix(Cam.projectionMatrix, false);
+            CamPoint = Cam.transform.position;
 
-                CamPoint = Cam.transform.position;
+            GetSectors(CurrentSector);
 
-                GetSectors(CurrentSector);
+            outTriangles.Clear();
 
-                OpaqueVertices.Clear();
+            debugRectangles.Clear();
 
-                OpaqueTextures.Clear();
+            GetPolygons(CurrentSector);
 
-                OpaqueTriangles.Clear();
-
-                OpaqueNormals.Clear();
-
-                combinedTriangles = 0;
-
-                GetPolygons(CurrentSector);
-
-                SetRenderMesh();
-
-                Cam.transform.hasChanged = false;
-            }
-        }  
+            Cam.transform.hasChanged = false;
+        }
     }
 
     void Awake()
     {
+        linetexture = new Texture2D(1, 1);
+
+        linetexture.SetPixel(0, 0, Color.white);
+
+        linetexture.Apply();
+
         Player = GameObject.Find("Player").GetComponent<CharacterController>();
 
         Player.GetComponent<CharacterController>().enabled = true;
@@ -274,44 +288,20 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public void CreateGameObjects()
+    void MakeLine(float x1, float y1, float x2, float y2, float linethickness)
     {
-        Shader shader = Resources.Load<Shader>("TEXARRAYSHADER");
+        GUI.DrawTexture(new Rect(x1, y1, x2 - x1, linethickness), linetexture);
+
+        GUI.DrawTexture(new Rect(x1, y1, linethickness, y2 - y1), linetexture);
+    }
+
+    public void CreateMaterial()
+    {
+        Shader shader = Resources.Load<Shader>("TriangleTexArray");
 
         opaquematerial = new Material(shader);
 
         opaquematerial.mainTexture = Resources.Load<Texture2DArray>("Textures");
-
-        CollisionObjects = new GameObject("Collision Meshes");
-
-        if (debug == true)
-        {
-            OpaqueObjects = new GameObject("Opaque Meshes");
-
-            EdgeObjects = new GameObject("Portal Meshes");
-
-            linematerial = new Material(shader);
-
-            linematerial.color = Color.cyan;
-        }
-        else
-        {
-            opaquemesh = new Mesh();
-
-            opaquemesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-
-            opaquemesh.MarkDynamic();
-
-            RenderMesh = new GameObject("Render Mesh");
-
-            RenderMesh.AddComponent<MeshFilter>();
-            RenderMesh.AddComponent<MeshRenderer>();
-
-            Renderer MeshRend = RenderMesh.GetComponent<Renderer>();
-            MeshRend.sharedMaterial = opaquematerial;
-            MeshRend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            RenderMesh.GetComponent<MeshFilter>().mesh = opaquemesh;
-        }   
     }
 
     public void PlayerInput()
@@ -839,53 +829,22 @@ public class LevelLoader : MonoBehaviour
             {
                 if (processbool[e] == true && processbool[e + 1] == true && processbool[e + 2] == true)
                 {
-                    Vector4 clip0 = processvertices[e];
-                    Vector4 clip1 = processvertices[e + 1];
-                    Vector4 clip2 = processvertices[e + 2];
+                    Triangle tri = new Triangle();
 
-                    Vector4 view0 = projection.inverse * clip0;
-                    view0 /= view0.w;
-                    Vector4 view1 = projection.inverse * clip1;
-                    view1 /= view1.w;
-                    Vector4 view2 = projection.inverse * clip2;
-                    view2 /= view2.w;
+                    tri.v0 = processvertices[e];
+                    tri.v1 = processvertices[e + 1];
+                    tri.v2 = processvertices[e + 2];
+                    tri.uv0 = processtextures[e];
+                    tri.uv1 = processtextures[e + 1];
+                    tri.uv2 = processtextures[e + 2];
+                    tri.n0 = processnormals[e];
+                    tri.n1 = processnormals[e + 1];
+                    tri.n2 = processnormals[e + 2];
 
-                    Vector4 world0 = view.inverse * view0;
-                    world0 /= world0.w;
-                    Vector4 world1 = view.inverse * view1;
-                    world1 /= world1.w;
-                    Vector4 world2 = view.inverse * view2;
-                    world2 /= world2.w;
-
-                    OpaqueVertices.Add(new Vector3(world0.x, world0.y, world0.z));
-                    OpaqueVertices.Add(new Vector3(world1.x, world1.y, world1.z));
-                    OpaqueVertices.Add(new Vector3(world2.x, world2.y, world2.z));
-                    OpaqueTextures.Add(processtextures[e]);
-                    OpaqueTextures.Add(processtextures[e + 1]);
-                    OpaqueTextures.Add(processtextures[e + 2]);
-                    OpaqueNormals.Add(processnormals[e]);
-                    OpaqueNormals.Add(processnormals[e + 1]);
-                    OpaqueNormals.Add(processnormals[e + 2]);
-                    OpaqueTriangles.Add(combinedTriangles);
-                    OpaqueTriangles.Add(combinedTriangles + 1);
-                    OpaqueTriangles.Add(combinedTriangles + 2);
-                    combinedTriangles += 3;
+                    outTriangles.Add(tri);
                 }
             }
         }
-    }
-
-    public void SetRenderMesh()
-    {
-        opaquemesh.Clear();
-
-        opaquemesh.SetVertices(OpaqueVertices);
-
-        opaquemesh.SetUVs(0, OpaqueTextures);
-
-        opaquemesh.SetTriangles(OpaqueTriangles, 0);
-
-        opaquemesh.SetNormals(OpaqueNormals);
     }
 
     public bool CheckRadius(SectorMeta asector, Vector3 campoint)
@@ -1071,7 +1030,9 @@ public class LevelLoader : MonoBehaviour
             {
                 SectorMeta sector = ListOfSectorLists[input][b];
 
-                rectangleIN = ListOfRectangleLists[input][b];
+                Rect rectangleIn = ListOfRectangleLists[input][b];
+
+                debugRectangles.Add(rectangleIn);
 
                 for (int c = sector.polygonStartIndex; c < sector.polygonStartIndex + sector.polygonCount; c++)
                 {
@@ -1090,29 +1051,7 @@ public class LevelLoader : MonoBehaviour
 
                     if (rendersector != -1)
                     {
-                        ClipTrianglesWithRectangle(rectangleIN, polygon);
-
-                        //for (int i = polygon.triangleStartIndex; i < polygon.triangleStartIndex + polygon.triangleCount; i += 3)
-                        //{
-                        //    // Debug triangles
-
-                        //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i]]);
-                        //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i + 1]]);
-                        //    OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[i + 2]]);
-
-                        //    OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[i]]);
-                        //    OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[i + 1]]);
-                        //    OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[i + 2]]);
-
-                        //    OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[i]]);
-                        //    OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[i + 1]]);
-                        //    OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[i + 2]]);
-
-                        //    OpaqueTriangles.Add(combinedTriangles);
-                        //    OpaqueTriangles.Add(combinedTriangles + 1);
-                        //    OpaqueTriangles.Add(combinedTriangles + 2);
-                        //    combinedTriangles += 3;
-                        //}
+                        ClipTrianglesWithRectangle(rectangleIn, polygon);
 
                         continue;
                     }
@@ -1127,7 +1066,7 @@ public class LevelLoader : MonoBehaviour
 
                         if (SectorsContains(sectorpolygon.sectorId))
                         {
-                            ListOfRectangleLists[output].Add(rectangleIN);
+                            ListOfRectangleLists[output].Add(rectangleIn);
 
                             NextSector = sectorpolygon;
 
@@ -1136,16 +1075,16 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        ClipEdgesWithRectangle(rectangleIN, polygon);
+                        ClipEdgesWithRectangle(rectangleIn, polygon);
 
                         if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
                         {
                             continue;
                         }
 
-                        rectangleOUT = MakeRectangle(OutEdgeVertices);
+                        Rect rectangleOut = MakeRectangle(OutEdgeVertices);
 
-                        if (IntersectRectangles(rectangleIN, rectangleOUT, out combinedRectangle))
+                        if (IntersectRectangles(rectangleIn, rectangleOut, out combinedRectangle))
                         {
                             ListOfRectangleLists[output].Add(combinedRectangle);
 
@@ -1192,7 +1131,7 @@ public class LevelLoader : MonoBehaviour
                 xmin = v.x;
             }
 
-            if (v.x > xmax) 
+            if (v.x > xmax)
             {
                 xmax = v.x;
             }
@@ -2111,127 +2050,13 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public void BuildEdges()
-    {
-        for (int i = 0; i < LevelLists.sectors.Count; i++)
-        {
-            OpaqueVertices.Clear();
-
-            OpaqueTriangles.Clear();
-
-            int lineCount = 0;
-
-            for (int e = LevelLists.sectors[i].polygonStartIndex; e < LevelLists.sectors[i].polygonStartIndex + LevelLists.sectors[i].polygonCount; e++)
-            {
-                if (LevelLists.polygons[e].connectedSectorId != -1)
-                {
-                    for (int f = LevelLists.polygons[e].edgeStartIndex; f < LevelLists.polygons[e].edgeStartIndex + LevelLists.polygons[e].edgeCount; f += 2)
-                    {
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.edges[f]]);
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.edges[f + 1]]);
-                        OpaqueTriangles.Add(lineCount);
-                        OpaqueTriangles.Add(lineCount + 1);
-                        lineCount += 2;
-                    }
-                }
-            }
-
-            Mesh combinedmesh = new Mesh();
-
-            EdgeMesh.Add(combinedmesh);
-
-            combinedmesh.SetVertices(OpaqueVertices);
-
-            combinedmesh.SetIndices(OpaqueTriangles, MeshTopology.Lines, 0);
-
-            GameObject meshObject = new GameObject("Edges " + i);
-
-            Edges.Add(meshObject);
-
-            MeshRenderer meshRenderer = meshObject.AddComponent<MeshRenderer>();
-
-            meshRenderer.sharedMaterial = linematerial;
-
-            MeshFilter meshFilter = meshObject.AddComponent<MeshFilter>();
-
-            meshFilter.sharedMesh = combinedmesh;
-
-            meshObject.transform.SetParent(EdgeObjects.transform);
-        }
-    }
-
-    public void BuildOpaques()
-    {
-        for (int i = 0; i < LevelLists.sectors.Count; i++)
-        {
-            OpaqueVertices.Clear();
-
-            OpaqueTextures.Clear();
-
-            OpaqueNormals.Clear();
-
-            OpaqueTriangles.Clear();
-
-            int triangleCount = 0;
-
-            for (int e = LevelLists.sectors[i].polygonStartIndex; e < LevelLists.sectors[i].polygonStartIndex + LevelLists.sectors[i].polygonCount; e++)
-            {
-                if (LevelLists.polygons[e].opaque != -1)
-                {
-                    for (int f = LevelLists.polygons[e].triangleStartIndex; f < LevelLists.polygons[e].triangleStartIndex + LevelLists.polygons[e].triangleCount; f += 3)
-                    {
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[f]]);
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 1]]);
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 2]]);
-                        OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[f]]);
-                        OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[f + 1]]);
-                        OpaqueTextures.Add(LevelLists.textures[LevelLists.triangles[f + 2]]);
-                        OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[f]]);
-                        OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[f + 1]]);
-                        OpaqueNormals.Add(LevelLists.normals[LevelLists.triangles[f + 2]]);
-                        OpaqueTriangles.Add(triangleCount);
-                        OpaqueTriangles.Add(triangleCount + 1);
-                        OpaqueTriangles.Add(triangleCount + 2);
-                        triangleCount += 3;
-                    }
-                }
-            }
-
-            Mesh combinedmesh = new Mesh();
-
-            OpaqueMesh.Add(combinedmesh);
-
-            combinedmesh.SetVertices(OpaqueVertices);
-
-            combinedmesh.SetUVs(0, OpaqueTextures);
-
-            combinedmesh.SetTriangles(OpaqueTriangles, 0);
-
-            combinedmesh.SetNormals(OpaqueNormals);
-
-            GameObject meshObject = new GameObject("Opaque " + i);
-
-            OpaqueSectors.Add(meshObject);
-
-            MeshRenderer meshRenderer = meshObject.AddComponent<MeshRenderer>();
-
-            meshRenderer.sharedMaterial = opaquematerial;
-
-            MeshFilter meshFilter = meshObject.AddComponent<MeshFilter>();
-
-            meshFilter.sharedMesh = combinedmesh;
-
-            meshObject.transform.SetParent(OpaqueObjects.transform);
-        }
-    }
-
     public void BuildColliders()
     {
         for (int i = 0; i < LevelLists.sectors.Count; i++)
         {
-            OpaqueVertices.Clear();
+            colliderVertices.Clear();
 
-            OpaqueTriangles.Clear();
+            colliderTriangles.Clear();
 
             int triangleCount = 0;
 
@@ -2241,24 +2066,24 @@ public class LevelLoader : MonoBehaviour
                 {
                     for (int f = LevelLists.polygons[e].triangleStartIndex; f < LevelLists.polygons[e].triangleStartIndex + LevelLists.polygons[e].triangleCount; f += 3)
                     {
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[f]]);
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 1]]);
-                        OpaqueVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 2]]);
-                        OpaqueTriangles.Add(triangleCount);
-                        OpaqueTriangles.Add(triangleCount + 1);
-                        OpaqueTriangles.Add(triangleCount + 2);
+                        colliderVertices.Add(LevelLists.vertices[LevelLists.triangles[f]]);
+                        colliderVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 1]]);
+                        colliderVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 2]]);
+                        colliderTriangles.Add(triangleCount);
+                        colliderTriangles.Add(triangleCount + 1);
+                        colliderTriangles.Add(triangleCount + 2);
                         triangleCount += 3;
                     }
-                } 
+                }
             }
 
             Mesh combinedmesh = new Mesh();
 
             CollisionMesh.Add(combinedmesh);
 
-            combinedmesh.SetVertices(OpaqueVertices);
+            combinedmesh.SetVertices(colliderVertices);
 
-            combinedmesh.SetTriangles(OpaqueTriangles, 0);
+            combinedmesh.SetTriangles(colliderTriangles, 0);
 
             GameObject meshObject = new GameObject("Collision " + i);
 
