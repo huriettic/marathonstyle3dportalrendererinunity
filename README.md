@@ -18,11 +18,15 @@ The portal rendering uses AABB in NDC space with Clip space triangle clipping, i
 
 
 
-Add the level file map-clear.txt, which is not included in this repository or use the included level I made, Two Hallways.
+Add the level file map-clear.txt from Bisqwit's portal rendering tutorial video, which is not included in this repository or use the included level I made, Two Hallways.
 
 
 
 You can get map-clear.txt from the video in the description and put it in the Resources folder in the project.
+
+
+
+Toggle debug to visualize the portals.
 
 
 
@@ -37,13 +41,4 @@ This project uses code from VisPortals by Bunny83.
 * License: MIT
 * Copyright: © 2016 Bunny83
 * [GitHub Source](https://github.com/Bunny83/UnityWebExamples/tree/master/VisPortals)
-
-
-
-##### Used code from scripts
-
-
-
-* Assets/VisPortal/VisAreaManager.cs
-* Assets/VisPortal/CameraExtension.cs
 
