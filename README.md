@@ -6,10 +6,6 @@ The project can play Bisqwit's portal rendering tutorial level.
 
 
 
-[Watch the video on YouTube.](https://www.youtube.com/watch?v=HQYsFshbkYw)
-
-
-
 This repository does not contain any files from Bisqwit's portal rendering tutorial.
 
 
@@ -19,6 +15,10 @@ The portal rendering uses AABB in NDC space with Clip space triangle clipping, i
 
 
 Add the level file map-clear.txt from Bisqwit's portal rendering tutorial video, which is not included in this repository or use the included level I made, Two Hallways.
+
+
+
+[Watch the video on YouTube.](https://www.youtube.com/watch?v=HQYsFshbkYw)
 
 
 
