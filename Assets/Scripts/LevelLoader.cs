@@ -164,10 +164,10 @@ public class LevelLoader : MonoBehaviour
                 float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
                 float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
 
-                MakeVerticalLine(xmin, ymin, xmin, ymax, 5.0f); // left
-                MakeVerticalLine(xmax, ymin, xmax, ymax, 5.0f); // right
-                MakeHorizontalLine(xmin, ymin, xmax, ymin, 5.0f); // bottom
-                MakeHorizontalLine(xmin, ymax, xmax, ymax, 5.0f); // top
+                MakeLeftLine(xmin, ymin, xmin, ymax, 5.0f); // left
+                MakeRightLine(xmax, ymin, xmax, ymax, 5.0f); // right
+                MakeBottomLine(xmin, ymin, xmax, ymin, 5.0f); // bottom
+                MakeTopLine(xmin, ymax, xmax, ymax, 5.0f); // top
             }
         }
     }
@@ -288,14 +288,24 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public void MakeHorizontalLine(float x1, float y1, float x2, float y2, float linethickness)
+    public void MakeLeftLine(float x1, float y1, float x2, float y2, float linethickness)
+    {
+        GUI.DrawTexture(new Rect(x1, y1, linethickness, y2 - y1), linetexture);
+    }
+
+    public void MakeRightLine(float x1, float y1, float x2, float y2, float linethickness)
+    {
+        GUI.DrawTexture(new Rect(x1 - linethickness, y1, linethickness, y2 - y1), linetexture);
+    }
+
+    public void MakeBottomLine(float x1, float y1, float x2, float y2, float linethickness)
     {
         GUI.DrawTexture(new Rect(x1, y1, x2 - x1, linethickness), linetexture);
     }
 
-    public void MakeVerticalLine(float x1, float y1, float x2, float y2, float linethickness)
+    public void MakeTopLine(float x1, float y1, float x2, float y2, float linethickness)
     {
-        GUI.DrawTexture(new Rect(x1, y1, linethickness, y2 - y1), linetexture);
+        GUI.DrawTexture(new Rect(x1, y1 - linethickness, x2 - x1, linethickness), linetexture);
     }
 
     public void CreateMaterial()
