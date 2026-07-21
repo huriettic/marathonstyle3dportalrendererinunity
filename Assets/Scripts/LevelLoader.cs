@@ -323,6 +323,11 @@ public class LevelLoader : MonoBehaviour
         {
             Application.Quit();
         }
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            debug = !debug;
+            Debug.Log("Debug is now " + debug);
+        }
         if (Input.GetKeyDown(KeyCode.Space) && Player.isGrounded)
         {
             currentForce.y = jumpHeight;
