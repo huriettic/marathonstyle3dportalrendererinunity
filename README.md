@@ -30,6 +30,10 @@ Toggle debug to visualize the portals.
 
 
 
+[NDC space AABB portals in clip space video.](https://www.youtube.com/watch?v=zMMPdxAyXXU)
+
+
+
 This project uses code from VisPortals by Bunny83.
 
 
