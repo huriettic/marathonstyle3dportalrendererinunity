@@ -8,6 +8,7 @@ public struct Triangle
     public Vector4 v0, v1, v2;
     public Vector3 uv0, uv1, uv2;
     public Vector3 n0, n1, n2;
+    public Vector4 rect;
 };
 
 [Serializable]
@@ -85,11 +86,7 @@ public class LevelLoader : MonoBehaviour
     GameObject CollisionObjects;
     bool[] processbool;
     Vector4[] processvertices;
-    Vector3[] processtextures;
-    Vector3[] processnormals;
     Vector4[] temporaryvertices;
-    Vector3[] temporarytextures;
-    Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
     List<List<Rect>> ListOfRectangleLists = new List<List<Rect>>();
     Camera Cam;
@@ -151,24 +148,26 @@ public class LevelLoader : MonoBehaviour
 
     void OnGUI()
     {
-        if (debug)
+        if (!debug)
         {
-            GUI.color = Color.blue;
+            return;
+        }
 
-            for (int i = 0; i < debugRectangles.Count; i++)
-            {
-                Rect rectangle = debugRectangles[i];
+        GUI.color = Color.blue;
 
-                float xmin = (rectangle.xMin * 0.5f + 0.5f) * Screen.width;
-                float xmax = (rectangle.xMax * 0.5f + 0.5f) * Screen.width;
-                float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
-                float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
+        for (int i = 0; i < debugRectangles.Count; i++)
+        {
+            Rect rectangle = debugRectangles[i];
 
-                MakeLeftLine(xmin, ymin, xmin, ymax, 5.0f); // left
-                MakeRightLine(xmax, ymin, xmax, ymax, 5.0f); // right
-                MakeBottomLine(xmin, ymin, xmax, ymin, 5.0f); // bottom
-                MakeTopLine(xmin, ymax, xmax, ymax, 5.0f); // top
-            }
+            float xmin = (rectangle.xMin * 0.5f + 0.5f) * Screen.width;
+            float xmax = (rectangle.xMax * 0.5f + 0.5f) * Screen.width;
+            float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
+            float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
+
+            MakeLeftLine(xmin, ymin, xmin, ymax, 5.0f); // left
+            MakeRightLine(xmax, ymin, xmax, ymax, 5.0f); // right
+            MakeBottomLine(xmin, ymin, xmax, ymin, 5.0f); // bottom
+            MakeTopLine(xmin, ymax, xmax, ymax, 5.0f); // top
         }
     }
 
@@ -203,19 +202,11 @@ public class LevelLoader : MonoBehaviour
 
         PlayerStart();
 
-        processbool = new bool[256];
+        processbool = new bool[128];
 
-        processvertices = new Vector4[256];
+        processvertices = new Vector4[128];
 
-        processtextures = new Vector3[256];
-
-        processnormals = new Vector3[256];
-
-        temporaryvertices = new Vector4[256];
-
-        temporarytextures = new Vector3[256];
-
-        temporarynormals = new Vector3[256];
+        temporaryvertices = new Vector4[128];
 
         for (int i = 0; i < 2; i++)
         {
@@ -359,6 +350,35 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
+    public void ClipSpaceTriangles(Rect portal, PolygonMeta triangles)
+    {
+        for (int a = triangles.triangleStartIndex; a < triangles.triangleStartIndex + triangles.triangleCount; a += 3)
+        {
+            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1.0f);
+            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1.0f);
+            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1.0f);
+
+            Vector4 v0clip = projection * v0view;
+            Vector4 v1clip = projection * v1view;
+            Vector4 v2clip = projection * v2view;
+
+            Triangle tri = new Triangle();
+
+            tri.v0 = v0clip;
+            tri.v1 = v1clip;
+            tri.v2 = v2clip;
+            tri.uv0 = LevelLists.textures[LevelLists.triangles[a]];
+            tri.uv1 = LevelLists.textures[LevelLists.triangles[a + 1]];
+            tri.uv2 = LevelLists.textures[LevelLists.triangles[a + 2]];
+            tri.n0 = LevelLists.normals[LevelLists.triangles[a]];
+            tri.n1 = LevelLists.normals[LevelLists.triangles[a + 1]];
+            tri.n2 = LevelLists.normals[LevelLists.triangles[a + 2]];
+            tri.rect = new Vector4(portal.xMin, portal.xMax, portal.yMin, portal.yMax);
+
+            outTriangles.Add(tri);
+        }
+    }
+
     public void ClipEdgesWithRectangle(Rect rectangle, PolygonMeta portal)
     {
         OutEdgeVertices.Clear();
@@ -385,7 +405,6 @@ public class LevelLoader : MonoBehaviour
         for (int b = 0; b < 6; b++)
         {
             int intersection = 0;
-
             int temporaryverticescount = 0;
 
             Vector4 intersectionPoint0 = Vector4.zero;
@@ -403,26 +422,31 @@ public class LevelLoader : MonoBehaviour
 
                 float d0, d1;
 
+                float xmin = rectangle.xMin;
+                float xmax = rectangle.xMax;
+                float ymin = rectangle.yMin;
+                float ymax = rectangle.yMax;
+
                 switch (b)
                 {
                     case 0: // Left
-                        d0 = v0.x - rectangle.xMin * v0.w;
-                        d1 = v1.x - rectangle.xMin * v1.w;
+                        d0 = v0.x - xmin * v0.w;
+                        d1 = v1.x - xmin * v1.w;
                         break;
 
                     case 1: // Right
-                        d0 = rectangle.xMax * v0.w - v0.x;
-                        d1 = rectangle.xMax * v1.w - v1.x;
+                        d0 = xmax * v0.w - v0.x;
+                        d1 = xmax * v1.w - v1.x;
                         break;
 
                     case 2: // Bottom
-                        d0 = v0.y - rectangle.yMin * v0.w;
-                        d1 = v1.y - rectangle.yMin * v1.w;
+                        d0 = v0.y - ymin * v0.w;
+                        d1 = v1.y - ymin * v1.w;
                         break;
 
                     case 3: // Top
-                        d0 = rectangle.yMax * v0.w - v0.y;
-                        d1 = rectangle.yMax * v1.w - v1.y;
+                        d0 = ymax * v0.w - v0.y;
+                        d1 = ymax * v1.w - v1.y;
                         break;
 
                     case 4: // Near
@@ -522,345 +546,6 @@ public class LevelLoader : MonoBehaviour
 
                 OutEdgeVertices.Add(ndc0);
                 OutEdgeVertices.Add(ndc1);
-            }
-        }
-    }
-
-    public void ClipTrianglesWithRectangle(Rect rectangle, PolygonMeta polygon)
-    {
-        for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
-        {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1.0f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1.0f);
-            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1.0f);
-
-            Vector4 v0clip = projection * v0view;
-            Vector4 v1clip = projection * v1view;
-            Vector4 v2clip = projection * v2view;
-
-            int processverticescount = 0;
-            int processtexturescount = 0;
-            int processnormalscount = 0;
-            int processboolcount = 0;
-
-            processvertices[processverticescount] = v0clip;
-            processvertices[processverticescount + 1] = v1clip;
-            processvertices[processverticescount + 2] = v2clip;
-            processverticescount += 3;
-            processtextures[processtexturescount] = LevelLists.textures[LevelLists.triangles[a]];
-            processtextures[processtexturescount + 1] = LevelLists.textures[LevelLists.triangles[a + 1]];
-            processtextures[processtexturescount + 2] = LevelLists.textures[LevelLists.triangles[a + 2]];
-            processtexturescount += 3;
-            processnormals[processnormalscount] = LevelLists.normals[LevelLists.triangles[a]];
-            processnormals[processnormalscount + 1] = LevelLists.normals[LevelLists.triangles[a + 1]];
-            processnormals[processnormalscount + 2] = LevelLists.normals[LevelLists.triangles[a + 2]];
-            processnormalscount += 3;
-            processbool[processboolcount] = true;
-            processbool[processboolcount + 1] = true;
-            processbool[processboolcount + 2] = true;
-            processboolcount += 3;
-
-            for (int b = 0; b < 6; b++)
-            {
-                int AddTriangles = 0;
-
-                int temporaryverticescount = 0;
-                int temporarytexturescount = 0;
-                int temporarynormalscount = 0;
-
-                for (int c = 0; c < processverticescount; c += 3)
-                {
-                    if (processbool[c] == false && processbool[c + 1] == false && processbool[c + 2] == false)
-                    {
-                        continue;
-                    }
-
-                    Vector4 v0 = processvertices[c];
-                    Vector4 v1 = processvertices[c + 1];
-                    Vector4 v2 = processvertices[c + 2];
-
-                    Vector3 uv0 = processtextures[c];
-                    Vector3 uv1 = processtextures[c + 1];
-                    Vector3 uv2 = processtextures[c + 2];
-
-                    Vector3 n0 = processnormals[c];
-                    Vector3 n1 = processnormals[c + 1];
-                    Vector3 n2 = processnormals[c + 2];
-
-                    float d0, d1, d2;
-
-                    switch (b)
-                    {
-                        case 0: // Left
-                            d0 = v0.x - rectangle.xMin * v0.w;
-                            d1 = v1.x - rectangle.xMin * v1.w;
-                            d2 = v2.x - rectangle.xMin * v2.w;
-                            break;
-
-                        case 1: // Right
-                            d0 = rectangle.xMax * v0.w - v0.x;
-                            d1 = rectangle.xMax * v1.w - v1.x;
-                            d2 = rectangle.xMax * v2.w - v2.x;
-                            break;
-
-                        case 2: // Bottom
-                            d0 = v0.y - rectangle.yMin * v0.w;
-                            d1 = v1.y - rectangle.yMin * v1.w;
-                            d2 = v2.y - rectangle.yMin * v2.w;
-                            break;
-
-                        case 3: // Top
-                            d0 = rectangle.yMax * v0.w - v0.y;
-                            d1 = rectangle.yMax * v1.w - v1.y;
-                            d2 = rectangle.yMax * v2.w - v2.y;
-                            break;
-
-                        case 4: // Near
-                            d0 = v0.z;
-                            d1 = v1.z;
-                            d2 = v2.z;
-                            break;
-
-                        case 5: // Far
-                            d0 = v0.w - v0.z;
-                            d1 = v1.w - v1.z;
-                            d2 = v2.w - v2.z;
-                            break;
-
-                        default:
-                            d0 = 0;
-                            d1 = 0;
-                            d2 = 0;
-                            break;
-                    }
-
-                    bool b0 = d0 >= 0;
-                    bool b1 = d1 >= 0;
-                    bool b2 = d2 >= 0;
-
-                    if (b0 && b1 && b2)
-                    {
-                        continue;
-                    }
-                    else if ((b0 && !b1 && !b2) || (!b0 && b1 && !b2) || (!b0 && !b1 && b2))
-                    {
-                        Vector4 inV, outV1, outV2;
-                        Vector3 inUV, outUV1, outUV2;
-                        Vector3 inN, outN1, outN2;
-                        float inD, outD1, outD2;
-
-                        if (b0)
-                        {
-                            inV = v0;
-                            inUV = uv0;
-                            inN = n0;
-                            inD = d0;
-                            outV1 = v1;
-                            outUV1 = uv1;
-                            outN1 = n1;
-                            outD1 = d1;
-                            outV2 = v2;
-                            outUV2 = uv2;
-                            outN2 = n2;
-                            outD2 = d2;
-                        }
-                        else if (b1)
-                        {
-                            inV = v1;
-                            inUV = uv1;
-                            inN = n1;
-                            inD = d1;
-                            outV1 = v2;
-                            outUV1 = uv2;
-                            outN1 = n2;
-                            outD1 = d2;
-                            outV2 = v0;
-                            outUV2 = uv0;
-                            outN2 = n0;
-                            outD2 = d0;
-                        }
-                        else
-                        {
-                            inV = v2;
-                            inUV = uv2;
-                            inN = n2;
-                            inD = d2;
-                            outV1 = v0;
-                            outUV1 = uv0;
-                            outN1 = n0;
-                            outD1 = d0;
-                            outV2 = v1;
-                            outUV2 = uv1;
-                            outN2 = n1;
-                            outD2 = d1;
-                        }
-
-                        float t1 = inD / (inD - outD1);
-                        float t2 = inD / (inD - outD2);
-
-                        temporaryvertices[temporaryverticescount] = inV;
-                        temporaryvertices[temporaryverticescount + 1] = Vector4.Lerp(inV, outV1, t1);
-                        temporaryvertices[temporaryverticescount + 2] = Vector4.Lerp(inV, outV2, t2);
-                        temporaryverticescount += 3;
-                        temporarytextures[temporarytexturescount] = inUV;
-                        temporarytextures[temporarytexturescount + 1] = Vector3.Lerp(inUV, outUV1, t1);
-                        temporarytextures[temporarytexturescount + 2] = Vector3.Lerp(inUV, outUV2, t2);
-                        temporarytexturescount += 3;
-                        temporarynormals[temporarynormalscount] = inN;
-                        temporarynormals[temporarynormalscount + 1] = Vector3.Lerp(inN, outN1, t1).normalized;
-                        temporarynormals[temporarynormalscount + 2] = Vector3.Lerp(inN, outN2, t2).normalized;
-                        temporarynormalscount += 3;
-                        processbool[c] = false;
-                        processbool[c + 1] = false;
-                        processbool[c + 2] = false;
-
-                        AddTriangles += 1;
-                    }
-                    else if ((!b0 && b1 && b2) || (b0 && !b1 && b2) || (b0 && b1 && !b2))
-                    {
-                        Vector4 inV1, inV2, outV;
-                        Vector3 inUV1, inUV2, outUV;
-                        Vector3 inN1, inN2, outN;
-                        float inD1, inD2, outD;
-
-                        if (!b0)
-                        {
-                            outV = v0;
-                            outUV = uv0;
-                            outN = n0;
-                            outD = d0;
-                            inV1 = v1;
-                            inUV1 = uv1;
-                            inN1 = n1;
-                            inD1 = d1;
-                            inV2 = v2;
-                            inUV2 = uv2;
-                            inN2 = n2;
-                            inD2 = d2;
-                        }
-                        else if (!b1)
-                        {
-                            outV = v1;
-                            outUV = uv1;
-                            outN = n1;
-                            outD = d1;
-                            inV1 = v2;
-                            inUV1 = uv2;
-                            inN1 = n2;
-                            inD1 = d2;
-                            inV2 = v0;
-                            inUV2 = uv0;
-                            inN2 = n0;
-                            inD2 = d0;
-                        }
-                        else
-                        {
-                            outV = v2;
-                            outUV = uv2;
-                            outN = n2;
-                            outD = d2;
-                            inV1 = v0;
-                            inUV1 = uv0;
-                            inN1 = n0;
-                            inD1 = d0;
-                            inV2 = v1;
-                            inUV2 = uv1;
-                            inN2 = n1;
-                            inD2 = d1;
-                        }
-
-                        float t1 = inD1 / (inD1 - outD);
-                        float t2 = inD2 / (inD2 - outD);
-
-                        Vector4 vA = Vector4.Lerp(inV1, outV, t1);
-                        Vector4 vB = Vector4.Lerp(inV2, outV, t2);
-
-                        Vector3 uvA = Vector3.Lerp(inUV1, outUV, t1);
-                        Vector3 uvB = Vector3.Lerp(inUV2, outUV, t2);
-
-                        Vector3 nA = Vector3.Lerp(inN1, outN, t1).normalized;
-                        Vector3 nB = Vector3.Lerp(inN2, outN, t2).normalized;
-
-                        temporaryvertices[temporaryverticescount] = inV1;
-                        temporaryvertices[temporaryverticescount + 1] = inV2;
-                        temporaryvertices[temporaryverticescount + 2] = vA;
-                        temporaryverticescount += 3;
-                        temporarytextures[temporarytexturescount] = inUV1;
-                        temporarytextures[temporarytexturescount + 1] = inUV2;
-                        temporarytextures[temporarytexturescount + 2] = uvA;
-                        temporarytexturescount += 3;
-                        temporarynormals[temporarynormalscount] = inN1;
-                        temporarynormals[temporarynormalscount + 1] = inN2;
-                        temporarynormals[temporarynormalscount + 2] = nA;
-                        temporarynormalscount += 3;
-                        temporaryvertices[temporaryverticescount] = vA;
-                        temporaryvertices[temporaryverticescount + 1] = inV2;
-                        temporaryvertices[temporaryverticescount + 2] = vB;
-                        temporaryverticescount += 3;
-                        temporarytextures[temporarytexturescount] = uvA;
-                        temporarytextures[temporarytexturescount + 1] = inUV2;
-                        temporarytextures[temporarytexturescount + 2] = uvB;
-                        temporarytexturescount += 3;
-                        temporarynormals[temporarynormalscount] = nA;
-                        temporarynormals[temporarynormalscount + 1] = inN2;
-                        temporarynormals[temporarynormalscount + 2] = nB;
-                        temporarynormalscount += 3;
-                        processbool[c] = false;
-                        processbool[c + 1] = false;
-                        processbool[c + 2] = false;
-
-                        AddTriangles += 2;
-                    }
-                    else
-                    {
-                        processbool[c] = false;
-                        processbool[c + 1] = false;
-                        processbool[c + 2] = false;
-                    }
-                }
-
-                if (AddTriangles > 0)
-                {
-                    for (int d = 0; d < temporaryverticescount; d += 3)
-                    {
-                        processvertices[processverticescount] = temporaryvertices[d];
-                        processvertices[processverticescount + 1] = temporaryvertices[d + 1];
-                        processvertices[processverticescount + 2] = temporaryvertices[d + 2];
-                        processverticescount += 3;
-                        processtextures[processtexturescount] = temporarytextures[d];
-                        processtextures[processtexturescount + 1] = temporarytextures[d + 1];
-                        processtextures[processtexturescount + 2] = temporarytextures[d + 2];
-                        processtexturescount += 3;
-                        processnormals[processnormalscount] = temporarynormals[d];
-                        processnormals[processnormalscount + 1] = temporarynormals[d + 1];
-                        processnormals[processnormalscount + 2] = temporarynormals[d + 2];
-                        processnormalscount += 3;
-                        processbool[processboolcount] = true;
-                        processbool[processboolcount + 1] = true;
-                        processbool[processboolcount + 2] = true;
-                        processboolcount += 3;
-                    }
-                }
-            }
-
-            for (int e = 0; e < processboolcount; e += 3)
-            {
-                if (processbool[e] == true && processbool[e + 1] == true && processbool[e + 2] == true)
-                {
-                    Triangle tri = new Triangle();
-
-                    tri.v0 = processvertices[e];
-                    tri.v1 = processvertices[e + 1];
-                    tri.v2 = processvertices[e + 2];
-                    tri.uv0 = processtextures[e];
-                    tri.uv1 = processtextures[e + 1];
-                    tri.uv2 = processtextures[e + 2];
-                    tri.n0 = processnormals[e];
-                    tri.n1 = processnormals[e + 1];
-                    tri.n2 = processnormals[e + 2];
-
-                    outTriangles.Add(tri);
-                }
             }
         }
     }
@@ -1069,7 +754,7 @@ public class LevelLoader : MonoBehaviour
 
                     if (rendersector != -1)
                     {
-                        ClipTrianglesWithRectangle(rectangleIn, polygon);
+                        ClipSpaceTriangles(rectangleIn, polygon);
 
                         continue;
                     }
