@@ -84,12 +84,12 @@ Shader "Custom/TriangleTexArray"
                 float clipMinY = i.aabb.z * w;
                 float clipMaxY = i.aabb.w * w;
 
-                clip(x - clipMinX); // left
-                clip(clipMaxX - x); // right
-                clip(y - clipMinY); // bottom
-                clip(clipMaxY - y); // top
-                clip(z);            // near
-                clip(w - z);        // far
+                clip(x - (clipMinX - 0.1f)); // left
+                clip((0.1f + clipMaxX) - x); // right
+                clip(y - (clipMinY - 0.1f)); // bottom
+                clip((0.1f + clipMaxY) - y); // top
+                clip(z);                     // near
+                clip(w - z);                 // far
 
                 return UNITY_SAMPLE_TEX2DARRAY(_MainTex, float3(i.uv, i.index));
             }
