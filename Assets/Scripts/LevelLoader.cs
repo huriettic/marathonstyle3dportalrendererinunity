@@ -373,7 +373,7 @@ public class LevelLoader : MonoBehaviour
             tri.n0 = LevelLists.normals[LevelLists.triangles[a]];
             tri.n1 = LevelLists.normals[LevelLists.triangles[a + 1]];
             tri.n2 = LevelLists.normals[LevelLists.triangles[a + 2]];
-            tri.rect = new Vector4(portal.xMin, portal.xMax, portal.yMin, portal.yMax);
+            tri.rect = new Vector4(portal.xMin, portal.yMin, portal.xMax, portal.yMax);
 
             outTriangles.Add(tri);
         }
@@ -787,9 +787,9 @@ public class LevelLoader : MonoBehaviour
 
                         Rect rectangleOut = MakeRectangle(OutEdgeVertices);
 
-                        if (IntersectRectangles(rectangleIn, rectangleOut, out combinedRectangle))
+                        if (OverlapRectangles(rectangleIn, rectangleOut))
                         {
-                            ListOfRectangleLists[output].Add(combinedRectangle);
+                            ListOfRectangleLists[output].Add(rectangleOut);
 
                             NextSector = sectorpolygon;
 
@@ -801,21 +801,9 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public bool IntersectRectangles(Rect a, Rect b, out Rect combined)
+    public bool OverlapRectangles(Rect a, Rect b)
     {
-        float xmin = Mathf.Max(a.xMin, b.xMin);
-        float ymin = Mathf.Max(a.yMin, b.yMin);
-        float xmax = Mathf.Min(a.xMax, b.xMax);
-        float ymax = Mathf.Min(a.yMax, b.yMax);
-
-        combined = Rect.MinMaxRect(xmin, ymin, xmax, ymax);
-
-        if (xmax <= xmin || ymax <= ymin)
-        {
-            return false;
-        }
-
-        return true;
+        return !(a.xMax < b.xMin || a.xMin > b.xMax || a.yMax < b.yMin || a.yMin > b.yMax);
     }
 
     public Rect MakeRectangle(List<Vector3> ndcEdges)

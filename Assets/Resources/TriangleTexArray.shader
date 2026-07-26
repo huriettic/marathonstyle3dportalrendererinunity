@@ -80,8 +80,8 @@ Shader "Custom/TriangleTexArray"
                 float w = i.clip.w;
 
                 float clipMinX = i.aabb.x * w;
-                float clipMaxX = i.aabb.y * w;
-                float clipMinY = i.aabb.z * w;
+                float clipMinY = i.aabb.y * w;
+                float clipMaxX = i.aabb.z * w;
                 float clipMaxY = i.aabb.w * w;
 
                 clip(x - (clipMinX - 0.1f)); // left
