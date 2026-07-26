@@ -105,7 +105,6 @@ public class LevelLoader : MonoBehaviour
     MathematicalPlane TopPlane;
     List<Vector3> flooruvs = new List<Vector3>();
     List<Vector3> ceilinguvs = new List<Vector3>();
-    Rect combinedRectangle;
     Matrix4x4 view;
     Matrix4x4 projection;
     GraphicsBuffer triBuffer;
@@ -113,6 +112,7 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
     List<Rect> debugRectangles = new List<Rect>();
+    List<Vector4> clipEdges = new List<Vector4>();
     Texture2D linetexture;
 
     [Serializable]
@@ -350,52 +350,17 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
-    public void ClipSpaceTriangles(Rect portal, PolygonMeta triangles)
-    {
-        for (int a = triangles.triangleStartIndex; a < triangles.triangleStartIndex + triangles.triangleCount; a += 3)
-        {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1.0f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1.0f);
-            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1.0f);
-
-            Vector4 v0clip = projection * v0view;
-            Vector4 v1clip = projection * v1view;
-            Vector4 v2clip = projection * v2view;
-
-            Triangle tri = new Triangle();
-
-            tri.v0 = v0clip;
-            tri.v1 = v1clip;
-            tri.v2 = v2clip;
-            tri.uv0 = LevelLists.textures[LevelLists.triangles[a]];
-            tri.uv1 = LevelLists.textures[LevelLists.triangles[a + 1]];
-            tri.uv2 = LevelLists.textures[LevelLists.triangles[a + 2]];
-            tri.n0 = LevelLists.normals[LevelLists.triangles[a]];
-            tri.n1 = LevelLists.normals[LevelLists.triangles[a + 1]];
-            tri.n2 = LevelLists.normals[LevelLists.triangles[a + 2]];
-            tri.rect = new Vector4(portal.xMin, portal.yMin, portal.xMax, portal.yMax);
-
-            outTriangles.Add(tri);
-        }
-    }
-
-    public void ClipEdgesWithRectangle(Rect rectangle, PolygonMeta portal)
+    public void ClipEdgesWithRectangle(Rect rectangle, List<Vector4> edges)
     {
         OutEdgeVertices.Clear();
 
         int processverticescount = 0;
         int processboolcount = 0;
 
-        for (int a = portal.edgeStartIndex; a < portal.edgeStartIndex + portal.edgeCount; a += 2)
+        for (int a = 0; a < edges.Count; a += 2)
         {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a]].x, LevelLists.vertices[LevelLists.edges[a]].y, LevelLists.vertices[LevelLists.edges[a]].z, 1.0f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a + 1]].x, LevelLists.vertices[LevelLists.edges[a + 1]].y, LevelLists.vertices[LevelLists.edges[a + 1]].z, 1.0f);
-
-            Vector4 v0clip = projection * v0view;
-            Vector4 v1clip = projection * v1view;
-
-            processvertices[processverticescount] = v0clip;
-            processvertices[processverticescount + 1] = v1clip;
+            processvertices[processverticescount] = edges[a];
+            processvertices[processverticescount + 1] = edges[a + 1];
             processverticescount += 2;
             processbool[processboolcount] = true;
             processbool[processboolcount + 1] = true;
@@ -423,8 +388,8 @@ public class LevelLoader : MonoBehaviour
                 float d0, d1;
 
                 float xmin = rectangle.xMin;
-                float xmax = rectangle.xMax;
                 float ymin = rectangle.yMin;
+                float xmax = rectangle.xMax;
                 float ymax = rectangle.yMax;
 
                 switch (b)
@@ -754,7 +719,54 @@ public class LevelLoader : MonoBehaviour
 
                     if (rendersector != -1)
                     {
-                        ClipSpaceTriangles(rectangleIn, polygon);
+                        for (int d = polygon.triangleStartIndex; d < polygon.triangleStartIndex + polygon.triangleCount; d += 3)
+                        {
+                            clipEdges.Clear();
+
+                            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[d]].x, LevelLists.vertices[LevelLists.triangles[d]].y, LevelLists.vertices[LevelLists.triangles[d]].z, 1.0f);
+                            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[d + 1]].x, LevelLists.vertices[LevelLists.triangles[d + 1]].y, LevelLists.vertices[LevelLists.triangles[d + 1]].z, 1.0f);
+                            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[d + 2]].x, LevelLists.vertices[LevelLists.triangles[d + 2]].y, LevelLists.vertices[LevelLists.triangles[d + 2]].z, 1.0f);
+
+                            Vector4 v0clip = projection * v0view;
+                            Vector4 v1clip = projection * v1view;
+                            Vector4 v2clip = projection * v2view;
+
+                            clipEdges.Add(v0clip);
+                            clipEdges.Add(v1clip);
+
+                            clipEdges.Add(v1clip);
+                            clipEdges.Add(v2clip);
+
+                            clipEdges.Add(v2clip);
+                            clipEdges.Add(v0clip);
+
+                            ClipEdgesWithRectangle(rectangleIn, clipEdges);
+
+                            if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
+                            {
+                                continue;
+                            }
+
+                            Rect rectangleOut = MakeRectangle(OutEdgeVertices);
+
+                            if (OverlapRectangles(rectangleIn, rectangleOut))
+                            {
+                                Triangle tri = new Triangle();
+
+                                tri.v0 = v0clip;
+                                tri.v1 = v1clip;
+                                tri.v2 = v2clip;
+                                tri.uv0 = LevelLists.textures[LevelLists.triangles[d]];
+                                tri.uv1 = LevelLists.textures[LevelLists.triangles[d + 1]];
+                                tri.uv2 = LevelLists.textures[LevelLists.triangles[d + 2]];
+                                tri.n0 = LevelLists.normals[LevelLists.triangles[d]];
+                                tri.n1 = LevelLists.normals[LevelLists.triangles[d + 1]];
+                                tri.n2 = LevelLists.normals[LevelLists.triangles[d + 2]];
+                                tri.rect = new Vector4(rectangleOut.xMin, rectangleOut.yMin, rectangleOut.xMax, rectangleOut.yMax);
+
+                                outTriangles.Add(tri);
+                            }
+                        }
 
                         continue;
                     }
@@ -778,7 +790,21 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        ClipEdgesWithRectangle(rectangleIn, polygon);
+                        clipEdges.Clear();
+
+                        for (int e = polygon.edgeStartIndex; e < polygon.edgeStartIndex + polygon.edgeCount; e += 2)
+                        {
+                            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[e]].x, LevelLists.vertices[LevelLists.edges[e]].y, LevelLists.vertices[LevelLists.edges[e]].z, 1.0f);
+                            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[e + 1]].x, LevelLists.vertices[LevelLists.edges[e + 1]].y, LevelLists.vertices[LevelLists.edges[e + 1]].z, 1.0f);
+
+                            Vector4 v0clip = projection * v0view;
+                            Vector4 v1clip = projection * v1view;
+
+                            clipEdges.Add(v0clip);
+                            clipEdges.Add(v1clip);
+                        }
+
+                        ClipEdgesWithRectangle(rectangleIn, clipEdges);
 
                         if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
                         {
@@ -821,17 +847,14 @@ public class LevelLoader : MonoBehaviour
             {
                 xmin = v.x;
             }
-
             if (v.x > xmax)
             {
                 xmax = v.x;
             }
-
             if (v.y < ymin)
             {
                 ymin = v.y;
             }
-
             if (v.y > ymax)
             {
                 ymax = v.y;
