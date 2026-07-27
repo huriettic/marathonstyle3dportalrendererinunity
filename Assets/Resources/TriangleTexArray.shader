@@ -44,52 +44,52 @@ Shader "Custom/TriangleTexArray"
 
                 Triangle tri = outputTriangleBuffer[triangleIndex];
 
-                float4 vertexTriangle;
+                float4 clipTriangle;
                 float3 uvTriangle;
 
                 if (triangleVertex == 0)
                 {
-                    vertexTriangle = tri.v0;
+                    clipTriangle = tri.v0;
                     uvTriangle = tri.uv0;
                 }
                 else if (triangleVertex == 1)
                 {
-                    vertexTriangle = tri.v1;
+                    clipTriangle = tri.v1;
                     uvTriangle = tri.uv1;
                 }
                 else
                 {
-                    vertexTriangle = tri.v2;
+                    clipTriangle = tri.v2;
                     uvTriangle = tri.uv2;
                 }
 
                 v2f o;
-                o.pos = vertexTriangle;
+                o.pos = clipTriangle;
                 o.uv = uvTriangle.xy;
                 o.index = uvTriangle.z;
                 o.aabb = tri.rect;
-                o.clip = vertexTriangle;
+                o.clip = clipTriangle;
                 return o;
             }
 
             fixed4 frag(v2f i) : SV_Target 
             {
-                float x = i.clip.x;
-                float y = i.clip.y;
-                float z = i.clip.z;
-                float w = i.clip.w;
+                float3 ndc = i.clip.xyz / i.clip.w;
 
-                float clipMinX = i.aabb.x * w;
-                float clipMinY = i.aabb.y * w;
-                float clipMaxX = i.aabb.z * w;
-                float clipMaxY = i.aabb.w * w;
+                float2 screen;
 
-                clip(x - (clipMinX - 0.1f)); // left
-                clip((0.1f + clipMaxX) - x); // right
-                clip(y - (clipMinY - 0.1f)); // bottom
-                clip((0.1f + clipMaxY) - y); // top
-                clip(z);                     // near
-                clip(w - z);                 // far
+                screen.x = (ndc.x * 0.5 + 0.5) * _ScreenParams.x;
+                screen.y = (ndc.y * 0.5 + 0.5) * _ScreenParams.y;
+
+                float xmin = i.aabb.x;
+                float ymin = i.aabb.y;
+                float xmax = i.aabb.z;
+                float ymax = i.aabb.w;
+
+                if (screen.x < xmin || screen.x > xmax || screen.y < ymin || screen.y > ymax)
+                {
+                    clip(-1);
+                }
 
                 return UNITY_SAMPLE_TEX2DARRAY(_MainTex, float3(i.uv, i.index));
             }

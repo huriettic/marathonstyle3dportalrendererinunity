@@ -751,6 +751,8 @@ public class LevelLoader : MonoBehaviour
 
                             if (OverlapRectangles(rectangleIn, rectangleOut))
                             {
+                                Rect rectangleScreen = MakeScreenRectangle(rectangleOut);
+
                                 Triangle tri = new Triangle();
 
                                 tri.v0 = v0clip;
@@ -762,7 +764,7 @@ public class LevelLoader : MonoBehaviour
                                 tri.n0 = LevelLists.normals[LevelLists.triangles[d]];
                                 tri.n1 = LevelLists.normals[LevelLists.triangles[d + 1]];
                                 tri.n2 = LevelLists.normals[LevelLists.triangles[d + 2]];
-                                tri.rect = new Vector4(rectangleOut.xMin, rectangleOut.yMin, rectangleOut.xMax, rectangleOut.yMax);
+                                tri.rect = new Vector4(rectangleScreen.xMin, rectangleScreen.yMin, rectangleScreen.xMax, rectangleScreen.yMax);
 
                                 outTriangles.Add(tri);
                             }
@@ -860,6 +862,16 @@ public class LevelLoader : MonoBehaviour
                 ymax = v.y;
             }
         }
+
+        return Rect.MinMaxRect(xmin, ymin, xmax, ymax);
+    }
+
+    public Rect MakeScreenRectangle(Rect rectangle)
+    {
+        float xmin = (rectangle.xMin * 0.5f + 0.5f) * Screen.width;
+        float xmax = (rectangle.xMax * 0.5f + 0.5f) * Screen.width;
+        float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
+        float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
 
         return Rect.MinMaxRect(xmin, ymin, xmax, ymax);
     }
