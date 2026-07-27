@@ -1,20 +1,22 @@
-# Marathon-style 3D portal renderer in Unity
+# Marathon-Style 3D Portal Renderer in Unity
 
 
 
-The project can play Bisqwit's portal rendering tutorial level.
+This project implements a Marathon style 3D portal renderer in Unity, inspired by Bisqwit's portal rendering tutorial and Bunny83’s VisPortals system.
 
 
 
-This repository does not contain any files from Bisqwit's portal rendering tutorial.
+The renderer is capable of playing Bisqwit's map-clear.txt tutorial level.
 
 
 
-The portal rendering uses AABB in NDC space with Clip space triangle clipping, it started from Bunny83's VisPortals project.
+##### Note:
 
 
 
-Add the level file map-clear.txt from Bisqwit's portal rendering tutorial video, which is not included in this repository or use the included level I made, Two Hallways.
+This repository does not contain any files from Bisqwit's portal rendering tutorial video.
+
+You must download map-clear.txt from the video description and place it in the project’s Resources folder.
 
 
 
@@ -22,11 +24,81 @@ Add the level file map-clear.txt from Bisqwit's portal rendering tutorial video,
 
 
 
-You can get map-clear.txt from the video in the description and put it in the Resources folder in the project.
+#### 1\. Clip space geometric clipping
 
 
 
-Toggle debug to visualize the portals.
+Portals and triangles are first clipped in clip space against:
+
+
+
+the camera frustum
+
+
+
+portal planes
+
+
+
+portal rectangles
+
+
+
+This ensures all surviving geometry lies fully inside the clip space frustum.
+
+
+
+#### 2\. NDC space AABB generation
+
+
+
+The clipped vertices are converted to NDC space, where an axis aligned bounding box (AABB) is computed.
+
+This AABB represents the visible region of the portal.
+
+
+
+#### 3\. Clipping using AABBs
+
+
+
+When clipping portals against an AABB, the AABB is converted back into clip space so the same clipper can be used to clip triangles. The triangles are clipped by portal AABB and the triangles AABB is converted to screen space.
+
+
+
+#### 4\. The guarantee
+
+
+
+If a portal or triangle has already been clipped by the frustum, any AABB created from the clipped geometry is guaranteed to lie entirely inside the NDC frustum.
+
+
+
+#### 5\. Screen space rasterization
+
+
+
+The fragment shader rasterizes triangles only inside their screen space AABB.
+
+
+
+##### Usage
+
+
+
+Add map-clear.txt from Bisqwit's tutorial video to the Resources folder.
+
+
+
+(the file is not included in this repository)
+
+
+
+Or use the included Two Hallways level.
+
+
+
+Toggle Debug Mode to visualize portal regions.
 
 
 
@@ -34,13 +106,15 @@ Toggle debug to visualize the portals.
 
 
 
+##### Credits
+
+
+
 This project uses code from VisPortals by Bunny83.
 
 
 
-##### VisPortals by Bunny83
-
-
+VisPortals by Bunny83  
 
 * License: MIT
 * Copyright: © 2016 Bunny83
