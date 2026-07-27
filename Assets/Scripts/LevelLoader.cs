@@ -749,25 +749,32 @@ public class LevelLoader : MonoBehaviour
 
                             Rect rectangleOut = MakeRectangle(OutEdgeVertices);
 
-                            if (OverlapRectangles(rectangleIn, rectangleOut))
+                            if (DegenerateRectangle(rectangleOut))
                             {
-                                Rect rectangleScreen = MakeScreenRectangle(rectangleOut);
-
-                                Triangle tri = new Triangle();
-
-                                tri.v0 = v0clip;
-                                tri.v1 = v1clip;
-                                tri.v2 = v2clip;
-                                tri.uv0 = LevelLists.textures[LevelLists.triangles[d]];
-                                tri.uv1 = LevelLists.textures[LevelLists.triangles[d + 1]];
-                                tri.uv2 = LevelLists.textures[LevelLists.triangles[d + 2]];
-                                tri.n0 = LevelLists.normals[LevelLists.triangles[d]];
-                                tri.n1 = LevelLists.normals[LevelLists.triangles[d + 1]];
-                                tri.n2 = LevelLists.normals[LevelLists.triangles[d + 2]];
-                                tri.rect = new Vector4(rectangleScreen.xMin, rectangleScreen.yMin, rectangleScreen.xMax, rectangleScreen.yMax);
-
-                                outTriangles.Add(tri);
+                                continue;
                             }
+
+                            if (RectanglesDoNotOverlap(rectangleIn, rectangleOut))
+                            {
+                                continue;
+                            }
+
+                            Rect rectangleScreen = MakeScreenRectangle(rectangleOut);
+
+                            Triangle tri = new Triangle();
+
+                            tri.v0 = v0clip;
+                            tri.v1 = v1clip;
+                            tri.v2 = v2clip;
+                            tri.uv0 = LevelLists.textures[LevelLists.triangles[d]];
+                            tri.uv1 = LevelLists.textures[LevelLists.triangles[d + 1]];
+                            tri.uv2 = LevelLists.textures[LevelLists.triangles[d + 2]];
+                            tri.n0 = LevelLists.normals[LevelLists.triangles[d]];
+                            tri.n1 = LevelLists.normals[LevelLists.triangles[d + 1]];
+                            tri.n2 = LevelLists.normals[LevelLists.triangles[d + 2]];
+                            tri.rect = new Vector4(rectangleScreen.xMin, rectangleScreen.yMin, rectangleScreen.xMax, rectangleScreen.yMax);
+
+                            outTriangles.Add(tri);
                         }
 
                         continue;
@@ -815,23 +822,35 @@ public class LevelLoader : MonoBehaviour
 
                         Rect rectangleOut = MakeRectangle(OutEdgeVertices);
 
-                        if (OverlapRectangles(rectangleIn, rectangleOut))
+                        if (DegenerateRectangle(rectangleOut))
                         {
-                            ListOfRectangleLists[output].Add(rectangleOut);
-
-                            NextSector = sectorpolygon;
-
-                            ListOfSectorLists[output].Add(NextSector);
+                            continue;
                         }
+
+                        if (RectanglesDoNotOverlap(rectangleIn, rectangleOut))
+                        {
+                            continue;
+                        }
+
+                        ListOfRectangleLists[output].Add(rectangleOut);
+
+                        NextSector = sectorpolygon;
+
+                        ListOfSectorLists[output].Add(NextSector);
                     }
                 }
             }
         }
     }
 
-    public bool OverlapRectangles(Rect a, Rect b)
+    public bool DegenerateRectangle(Rect r)
     {
-        return !(a.xMax < b.xMin || a.xMin > b.xMax || a.yMax < b.yMin || a.yMin > b.yMax);
+        return r.xMin >= r.xMax || r.yMin >= r.yMax || (r.xMax - r.xMin) < 0.001f || (r.yMax - r.yMin) < 0.001f;
+    }
+
+    public bool RectanglesDoNotOverlap(Rect a, Rect b)
+    {
+        return a.xMax < b.xMin || a.xMin > b.xMax || a.yMax < b.yMin || a.yMin > b.yMax;
     }
 
     public Rect MakeRectangle(List<Vector3> ndcEdges)

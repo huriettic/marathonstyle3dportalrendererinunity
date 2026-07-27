@@ -81,10 +81,10 @@ Shader "Custom/TriangleTexArray"
                 screen.x = (ndc.x * 0.5 + 0.5) * _ScreenParams.x;
                 screen.y = (ndc.y * 0.5 + 0.5) * _ScreenParams.y;
 
-                float xmin = i.aabb.x;
-                float ymin = i.aabb.y;
-                float xmax = i.aabb.z;
-                float ymax = i.aabb.w;
+                float xmin = i.aabb.x - 0.5f;
+                float ymin = i.aabb.y - 0.5f;
+                float xmax = i.aabb.z + 0.5f;
+                float ymax = i.aabb.w + 0.5f;
 
                 if (screen.x < xmin || screen.x > xmax || screen.y < ymin || screen.y > ymax)
                 {
