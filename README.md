@@ -42,7 +42,7 @@ This produces a clipped polygon fully inside the clip space frustum.
 
 
 
-The clipped polygon is converted to NDC space, then to screen space.
+The clipped polygon is converted from clip space to screen space.
 
 
 
@@ -54,9 +54,7 @@ A screen space axis aligned bounding box (AABB) is made for triangles and portal
 
 
 
-Instead of converting NDC space AABBs back into clip space and re-clipping geometry,
-
-the renderer now does screen space AABB intersection.
+Instead of converting NDC space AABBs back into clip space and re-clipping geometry, the renderer now does screen space AABB intersection.
 
 
 
