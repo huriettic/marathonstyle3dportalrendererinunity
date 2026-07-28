@@ -86,9 +86,13 @@ public class LevelLoader : MonoBehaviour
     GameObject CollisionObjects;
     bool[] processbool;
     Vector4[] processvertices;
+    Vector3[] processtextures;
+    Vector3[] processnormals;
     Vector4[] temporaryvertices;
+    Vector3[] temporarytextures;
+    Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
-    List<List<Rect>> ListOfRectangleLists = new List<List<Rect>>();
+    List<List<Vector4>> ListOfRectangleLists = new List<List<Vector4>>();
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -111,8 +115,7 @@ public class LevelLoader : MonoBehaviour
     List<Triangle> outTriangles = new List<Triangle>();
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
-    List<Rect> debugRectangles = new List<Rect>();
-    List<Vector4> clipEdges = new List<Vector4>();
+    List<Vector4> debugRectangles = new List<Vector4>();
     Texture2D linetexture;
 
     [Serializable]
@@ -157,12 +160,12 @@ public class LevelLoader : MonoBehaviour
 
         for (int i = 0; i < debugRectangles.Count; i++)
         {
-            Rect rectangle = debugRectangles[i];
+            Vector4 rectangle = debugRectangles[i];
 
-            float xmin = (rectangle.xMin * 0.5f + 0.5f) * Screen.width;
-            float xmax = (rectangle.xMax * 0.5f + 0.5f) * Screen.width;
-            float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
-            float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
+            float xmin = (rectangle.x * 0.5f + 0.5f) * Screen.width;
+            float ymin = (rectangle.y * 0.5f + 0.5f) * Screen.height;
+            float xmax = (rectangle.z * 0.5f + 0.5f) * Screen.width;
+            float ymax = (rectangle.w * 0.5f + 0.5f) * Screen.height;
 
             MakeLeftLine(xmin, ymin, xmin, ymax, 5.0f); // left
             MakeRightLine(xmax, ymin, xmax, ymax, 5.0f); // right
@@ -202,11 +205,19 @@ public class LevelLoader : MonoBehaviour
 
         PlayerStart();
 
-        processbool = new bool[128];
+        processbool = new bool[256];
 
-        processvertices = new Vector4[128];
+        processvertices = new Vector4[256];
 
-        temporaryvertices = new Vector4[128];
+        processtextures = new Vector3[256];
+
+        processnormals = new Vector3[256];
+
+        temporaryvertices = new Vector4[256];
+
+        temporarytextures = new Vector3[256];
+
+        temporarynormals = new Vector3[256];
 
         for (int i = 0; i < 2; i++)
         {
@@ -215,7 +226,7 @@ public class LevelLoader : MonoBehaviour
 
         for (int i = 0; i < 2; i++)
         {
-            ListOfRectangleLists.Add(new List<Rect>());
+            ListOfRectangleLists.Add(new List<Vector4>());
         }
 
         for (int i = 0; i < LevelLists.sectors.Count; i++)
@@ -317,7 +328,6 @@ public class LevelLoader : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             debug = !debug;
-            Debug.Log("Debug is now " + debug);
         }
         if (Input.GetKeyDown(KeyCode.Space) && Player.isGrounded)
         {
@@ -350,17 +360,23 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
-    public void ClipEdgesWithRectangle(Rect rectangle, List<Vector4> edges)
+    public Vector4 ClipEdgesWithRectangle(Vector4 rectangle, PolygonMeta portal)
     {
         OutEdgeVertices.Clear();
 
         int processverticescount = 0;
         int processboolcount = 0;
 
-        for (int a = 0; a < edges.Count; a += 2)
+        for (int a = portal.edgeStartIndex; a < portal.edgeStartIndex + portal.edgeCount; a += 2)
         {
-            processvertices[processverticescount] = edges[a];
-            processvertices[processverticescount + 1] = edges[a + 1];
+            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a]].x, LevelLists.vertices[LevelLists.edges[a]].y, LevelLists.vertices[LevelLists.edges[a]].z, 1.0f);
+            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a + 1]].x, LevelLists.vertices[LevelLists.edges[a + 1]].y, LevelLists.vertices[LevelLists.edges[a + 1]].z, 1.0f);
+
+            Vector4 v0clip = projection * v0view;
+            Vector4 v1clip = projection * v1view;
+
+            processvertices[processverticescount] = v0clip;
+            processvertices[processverticescount + 1] = v1clip;
             processverticescount += 2;
             processbool[processboolcount] = true;
             processbool[processboolcount + 1] = true;
@@ -370,6 +386,7 @@ public class LevelLoader : MonoBehaviour
         for (int b = 0; b < 6; b++)
         {
             int intersection = 0;
+
             int temporaryverticescount = 0;
 
             Vector4 intersectionPoint0 = Vector4.zero;
@@ -387,31 +404,31 @@ public class LevelLoader : MonoBehaviour
 
                 float d0, d1;
 
-                float xmin = rectangle.xMin;
-                float ymin = rectangle.yMin;
-                float xmax = rectangle.xMax;
-                float ymax = rectangle.yMax;
+                float clipxmin = rectangle.x;
+                float clipymin = rectangle.y;
+                float clipxmax = rectangle.z;
+                float clipymax = rectangle.w;
 
                 switch (b)
                 {
                     case 0: // Left
-                        d0 = v0.x - xmin * v0.w;
-                        d1 = v1.x - xmin * v1.w;
+                        d0 = v0.x - clipxmin * v0.w;
+                        d1 = v1.x - clipxmin * v1.w;
                         break;
 
                     case 1: // Right
-                        d0 = xmax * v0.w - v0.x;
-                        d1 = xmax * v1.w - v1.x;
+                        d0 = clipxmax * v0.w - v0.x;
+                        d1 = clipxmax * v1.w - v1.x;
                         break;
 
                     case 2: // Bottom
-                        d0 = v0.y - ymin * v0.w;
-                        d1 = v1.y - ymin * v1.w;
+                        d0 = v0.y - clipymin * v0.w;
+                        d1 = v1.y - clipymin * v1.w;
                         break;
 
                     case 3: // Top
-                        d0 = ymax * v0.w - v0.y;
-                        d1 = ymax * v1.w - v1.y;
+                        d0 = clipymax * v0.w - v0.y;
+                        d1 = clipymax * v1.w - v1.y;
                         break;
 
                     case 4: // Near
@@ -511,6 +528,452 @@ public class LevelLoader : MonoBehaviour
 
                 OutEdgeVertices.Add(ndc0);
                 OutEdgeVertices.Add(ndc1);
+            }
+        }
+
+        float xmin = float.PositiveInfinity;
+        float ymin = float.PositiveInfinity;
+        float xmax = float.NegativeInfinity;
+        float ymax = float.NegativeInfinity;
+
+        for (int i = 0; i < OutEdgeVertices.Count; i++)
+        {
+            Vector3 v = OutEdgeVertices[i];
+
+            if (v.x < xmin)
+            {
+                xmin = v.x;
+            }
+            if (v.x > xmax)
+            {
+                xmax = v.x;
+            }
+            if (v.y < ymin)
+            {
+                ymin = v.y;
+            }
+            if (v.y > ymax)
+            {
+                ymax = v.y;
+            }
+        }
+
+        return new Vector4(xmin, ymin, xmax, ymax);
+    }
+
+    public void ClipTrianglesWithRectangle(Vector4 rectangle, PolygonMeta polygon)
+    {
+        for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
+        {
+            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1.0f);
+            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1.0f);
+            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1.0f);
+
+            Vector4 v0clip = projection * v0view;
+            Vector4 v1clip = projection * v1view;
+            Vector4 v2clip = projection * v2view;
+
+            int processverticescount = 0;
+            int processtexturescount = 0;
+            int processnormalscount = 0;
+            int processboolcount = 0;
+
+            processvertices[processverticescount] = v0clip;
+            processvertices[processverticescount + 1] = v1clip;
+            processvertices[processverticescount + 2] = v2clip;
+            processverticescount += 3;
+            processtextures[processtexturescount] = LevelLists.textures[LevelLists.triangles[a]];
+            processtextures[processtexturescount + 1] = LevelLists.textures[LevelLists.triangles[a + 1]];
+            processtextures[processtexturescount + 2] = LevelLists.textures[LevelLists.triangles[a + 2]];
+            processtexturescount += 3;
+            processnormals[processnormalscount] = LevelLists.normals[LevelLists.triangles[a]];
+            processnormals[processnormalscount + 1] = LevelLists.normals[LevelLists.triangles[a + 1]];
+            processnormals[processnormalscount + 2] = LevelLists.normals[LevelLists.triangles[a + 2]];
+            processnormalscount += 3;
+            processbool[processboolcount] = true;
+            processbool[processboolcount + 1] = true;
+            processbool[processboolcount + 2] = true;
+            processboolcount += 3;
+
+            for (int b = 0; b < 6; b++)
+            {
+                int AddTriangles = 0;
+
+                int temporaryverticescount = 0;
+                int temporarytexturescount = 0;
+                int temporarynormalscount = 0;
+
+                for (int c = 0; c < processverticescount; c += 3)
+                {
+                    if (processbool[c] == false && processbool[c + 1] == false && processbool[c + 2] == false)
+                    {
+                        continue;
+                    }
+
+                    Vector4 v0 = processvertices[c];
+                    Vector4 v1 = processvertices[c + 1];
+                    Vector4 v2 = processvertices[c + 2];
+
+                    Vector3 uv0 = processtextures[c];
+                    Vector3 uv1 = processtextures[c + 1];
+                    Vector3 uv2 = processtextures[c + 2];
+
+                    Vector3 n0 = processnormals[c];
+                    Vector3 n1 = processnormals[c + 1];
+                    Vector3 n2 = processnormals[c + 2];
+
+                    float d0, d1, d2;
+
+                    float clipxmin = rectangle.x;
+                    float clipymin = rectangle.y;
+                    float clipxmax = rectangle.z;
+                    float clipymax = rectangle.w;
+
+                    switch (b)
+                    {
+                        case 0: // Left
+                            d0 = v0.x - clipxmin * v0.w;
+                            d1 = v1.x - clipxmin * v1.w;
+                            d2 = v2.x - clipxmin * v2.w;
+                            break;
+
+                        case 1: // Right
+                            d0 = clipxmax * v0.w - v0.x;
+                            d1 = clipxmax * v1.w - v1.x;
+                            d2 = clipxmax * v2.w - v2.x;
+                            break;
+
+                        case 2: // Bottom
+                            d0 = v0.y - clipymin * v0.w;
+                            d1 = v1.y - clipymin * v1.w;
+                            d2 = v2.y - clipymin * v2.w;
+                            break;
+
+                        case 3: // Top
+                            d0 = clipymax * v0.w - v0.y;
+                            d1 = clipymax * v1.w - v1.y;
+                            d2 = clipymax * v2.w - v2.y;
+                            break;
+
+                        case 4: // Near
+                            d0 = v0.z;
+                            d1 = v1.z;
+                            d2 = v2.z;
+                            break;
+
+                        case 5: // Far
+                            d0 = v0.w - v0.z;
+                            d1 = v1.w - v1.z;
+                            d2 = v2.w - v2.z;
+                            break;
+
+                        default:
+                            d0 = 0;
+                            d1 = 0;
+                            d2 = 0;
+                            break;
+                    }
+
+                    bool b0 = d0 >= 0;
+                    bool b1 = d1 >= 0;
+                    bool b2 = d2 >= 0;
+
+                    if (b0 && b1 && b2)
+                    {
+                        continue;
+                    }
+                    else if ((b0 && !b1 && !b2) || (!b0 && b1 && !b2) || (!b0 && !b1 && b2))
+                    {
+                        Vector4 inV, outV1, outV2;
+                        Vector3 inUV, outUV1, outUV2;
+                        Vector3 inN, outN1, outN2;
+                        float inD, outD1, outD2;
+
+                        if (b0)
+                        {
+                            inV = v0;
+                            inUV = uv0;
+                            inN = n0;
+                            inD = d0;
+                            outV1 = v1;
+                            outUV1 = uv1;
+                            outN1 = n1;
+                            outD1 = d1;
+                            outV2 = v2;
+                            outUV2 = uv2;
+                            outN2 = n2;
+                            outD2 = d2;
+                        }
+                        else if (b1)
+                        {
+                            inV = v1;
+                            inUV = uv1;
+                            inN = n1;
+                            inD = d1;
+                            outV1 = v2;
+                            outUV1 = uv2;
+                            outN1 = n2;
+                            outD1 = d2;
+                            outV2 = v0;
+                            outUV2 = uv0;
+                            outN2 = n0;
+                            outD2 = d0;
+                        }
+                        else
+                        {
+                            inV = v2;
+                            inUV = uv2;
+                            inN = n2;
+                            inD = d2;
+                            outV1 = v0;
+                            outUV1 = uv0;
+                            outN1 = n0;
+                            outD1 = d0;
+                            outV2 = v1;
+                            outUV2 = uv1;
+                            outN2 = n1;
+                            outD2 = d1;
+                        }
+
+                        float t1 = inD / (inD - outD1);
+                        float t2 = inD / (inD - outD2);
+
+                        temporaryvertices[temporaryverticescount] = inV;
+                        temporaryvertices[temporaryverticescount + 1] = Vector4.Lerp(inV, outV1, t1);
+                        temporaryvertices[temporaryverticescount + 2] = Vector4.Lerp(inV, outV2, t2);
+                        temporaryverticescount += 3;
+                        temporarytextures[temporarytexturescount] = inUV;
+                        temporarytextures[temporarytexturescount + 1] = Vector3.Lerp(inUV, outUV1, t1);
+                        temporarytextures[temporarytexturescount + 2] = Vector3.Lerp(inUV, outUV2, t2);
+                        temporarytexturescount += 3;
+                        temporarynormals[temporarynormalscount] = inN;
+                        temporarynormals[temporarynormalscount + 1] = Vector3.Lerp(inN, outN1, t1).normalized;
+                        temporarynormals[temporarynormalscount + 2] = Vector3.Lerp(inN, outN2, t2).normalized;
+                        temporarynormalscount += 3;
+                        processbool[c] = false;
+                        processbool[c + 1] = false;
+                        processbool[c + 2] = false;
+
+                        AddTriangles += 1;
+                    }
+                    else if ((!b0 && b1 && b2) || (b0 && !b1 && b2) || (b0 && b1 && !b2))
+                    {
+                        Vector4 inV1, inV2, outV;
+                        Vector3 inUV1, inUV2, outUV;
+                        Vector3 inN1, inN2, outN;
+                        float inD1, inD2, outD;
+
+                        if (!b0)
+                        {
+                            outV = v0;
+                            outUV = uv0;
+                            outN = n0;
+                            outD = d0;
+                            inV1 = v1;
+                            inUV1 = uv1;
+                            inN1 = n1;
+                            inD1 = d1;
+                            inV2 = v2;
+                            inUV2 = uv2;
+                            inN2 = n2;
+                            inD2 = d2;
+                        }
+                        else if (!b1)
+                        {
+                            outV = v1;
+                            outUV = uv1;
+                            outN = n1;
+                            outD = d1;
+                            inV1 = v2;
+                            inUV1 = uv2;
+                            inN1 = n2;
+                            inD1 = d2;
+                            inV2 = v0;
+                            inUV2 = uv0;
+                            inN2 = n0;
+                            inD2 = d0;
+                        }
+                        else
+                        {
+                            outV = v2;
+                            outUV = uv2;
+                            outN = n2;
+                            outD = d2;
+                            inV1 = v0;
+                            inUV1 = uv0;
+                            inN1 = n0;
+                            inD1 = d0;
+                            inV2 = v1;
+                            inUV2 = uv1;
+                            inN2 = n1;
+                            inD2 = d1;
+                        }
+
+                        float t1 = inD1 / (inD1 - outD);
+                        float t2 = inD2 / (inD2 - outD);
+
+                        Vector4 vA = Vector4.Lerp(inV1, outV, t1);
+                        Vector4 vB = Vector4.Lerp(inV2, outV, t2);
+
+                        Vector3 uvA = Vector3.Lerp(inUV1, outUV, t1);
+                        Vector3 uvB = Vector3.Lerp(inUV2, outUV, t2);
+
+                        Vector3 nA = Vector3.Lerp(inN1, outN, t1).normalized;
+                        Vector3 nB = Vector3.Lerp(inN2, outN, t2).normalized;
+
+                        temporaryvertices[temporaryverticescount] = inV1;
+                        temporaryvertices[temporaryverticescount + 1] = inV2;
+                        temporaryvertices[temporaryverticescount + 2] = vA;
+                        temporaryverticescount += 3;
+                        temporarytextures[temporarytexturescount] = inUV1;
+                        temporarytextures[temporarytexturescount + 1] = inUV2;
+                        temporarytextures[temporarytexturescount + 2] = uvA;
+                        temporarytexturescount += 3;
+                        temporarynormals[temporarynormalscount] = inN1;
+                        temporarynormals[temporarynormalscount + 1] = inN2;
+                        temporarynormals[temporarynormalscount + 2] = nA;
+                        temporarynormalscount += 3;
+                        temporaryvertices[temporaryverticescount] = vA;
+                        temporaryvertices[temporaryverticescount + 1] = inV2;
+                        temporaryvertices[temporaryverticescount + 2] = vB;
+                        temporaryverticescount += 3;
+                        temporarytextures[temporarytexturescount] = uvA;
+                        temporarytextures[temporarytexturescount + 1] = inUV2;
+                        temporarytextures[temporarytexturescount + 2] = uvB;
+                        temporarytexturescount += 3;
+                        temporarynormals[temporarynormalscount] = nA;
+                        temporarynormals[temporarynormalscount + 1] = inN2;
+                        temporarynormals[temporarynormalscount + 2] = nB;
+                        temporarynormalscount += 3;
+                        processbool[c] = false;
+                        processbool[c + 1] = false;
+                        processbool[c + 2] = false;
+
+                        AddTriangles += 2;
+                    }
+                    else
+                    {
+                        processbool[c] = false;
+                        processbool[c + 1] = false;
+                        processbool[c + 2] = false;
+                    }
+                }
+
+                if (AddTriangles > 0)
+                {
+                    for (int d = 0; d < temporaryverticescount; d += 3)
+                    {
+                        processvertices[processverticescount] = temporaryvertices[d];
+                        processvertices[processverticescount + 1] = temporaryvertices[d + 1];
+                        processvertices[processverticescount + 2] = temporaryvertices[d + 2];
+                        processverticescount += 3;
+                        processtextures[processtexturescount] = temporarytextures[d];
+                        processtextures[processtexturescount + 1] = temporarytextures[d + 1];
+                        processtextures[processtexturescount + 2] = temporarytextures[d + 2];
+                        processtexturescount += 3;
+                        processnormals[processnormalscount] = temporarynormals[d];
+                        processnormals[processnormalscount + 1] = temporarynormals[d + 1];
+                        processnormals[processnormalscount + 2] = temporarynormals[d + 2];
+                        processnormalscount += 3;
+                        processbool[processboolcount] = true;
+                        processbool[processboolcount + 1] = true;
+                        processbool[processboolcount + 2] = true;
+                        processboolcount += 3;
+                    }
+                }
+            }
+
+            for (int e = 0; e < processboolcount; e += 3)
+            {
+                if (processbool[e] == true && processbool[e + 1] == true && processbool[e + 2] == true)
+                {
+                    Vector4 clip0 = processvertices[e];
+                    Vector4 clip1 = processvertices[e + 1];
+                    Vector4 clip2 = processvertices[e + 2];
+
+                    float invw0 = 1.0f / clip0.w;
+                    float invw1 = 1.0f / clip1.w;
+                    float invw2 = 1.0f / clip2.w;
+
+                    Vector3 ndc0 = new Vector3(clip0.x * invw0, clip0.y * invw0, clip0.z * invw0);
+                    Vector3 ndc1 = new Vector3(clip1.x * invw1, clip1.y * invw1, clip1.z * invw1);
+                    Vector3 ndc2 = new Vector3(clip2.x * invw2, clip2.y * invw2, clip2.z * invw2);
+
+                    Vector2 screen0 = new Vector2((ndc0.x * 0.5f + 0.5f) * Screen.width, (ndc0.y * 0.5f + 0.5f) * Screen.height);
+                    Vector2 screen1 = new Vector2((ndc1.x * 0.5f + 0.5f) * Screen.width, (ndc1.y * 0.5f + 0.5f) * Screen.height);
+                    Vector2 screen2 = new Vector2((ndc2.x * 0.5f + 0.5f) * Screen.width, (ndc2.y * 0.5f + 0.5f) * Screen.height);
+
+                    float xmin = float.PositiveInfinity;
+                    float ymin = float.PositiveInfinity;
+                    float xmax = float.NegativeInfinity;
+                    float ymax = float.NegativeInfinity;
+
+                    if (screen0.x < xmin)
+                    {
+                        xmin = screen0.x;
+                    }
+                    if (screen0.x > xmax)
+                    {
+                        xmax = screen0.x;
+                    }
+                    if (screen0.y < ymin)
+                    {
+                        ymin = screen0.y;
+                    }
+                    if (screen0.y > ymax)
+                    {
+                        ymax = screen0.y;
+                    }
+
+                    if (screen1.x < xmin)
+                    {
+                        xmin = screen1.x;
+                    }
+                    if (screen1.x > xmax)
+                    {
+                        xmax = screen1.x;
+                    }
+                    if (screen1.y < ymin)
+                    {
+                        ymin = screen1.y;
+                    }
+                    if (screen1.y > ymax)
+                    {
+                        ymax = screen1.y;
+                    }
+
+                    if (screen2.x < xmin)
+                    {
+                        xmin = screen2.x;
+                    }
+                    if (screen2.x > xmax)
+                    {
+                        xmax = screen2.x;
+                    }
+                    if (screen2.y < ymin)
+                    {
+                        ymin = screen2.y;
+                    }
+                    if (screen2.y > ymax)
+                    {
+                        ymax = screen2.y;
+                    }
+
+                    Triangle tri = new Triangle();
+
+                    tri.v0 = clip0;
+                    tri.v1 = clip1;
+                    tri.v2 = clip2;
+                    tri.uv0 = processtextures[e];
+                    tri.uv1 = processtextures[e + 1];
+                    tri.uv2 = processtextures[e + 2];
+                    tri.n0 = processnormals[e];
+                    tri.n1 = processnormals[e + 1];
+                    tri.n2 = processnormals[e + 2];
+                    tri.rect = new Vector4(xmin, ymin, xmax, ymax);
+
+                    outTriangles.Add(tri);
+                }
             }
         }
     }
@@ -668,7 +1131,7 @@ public class LevelLoader : MonoBehaviour
         ListOfRectangleLists[input].Clear();
         ListOfRectangleLists[output].Clear();
 
-        ListOfRectangleLists[input].Add(new Rect(-1f, -1f, 2f, 2f));
+        ListOfRectangleLists[input].Add(new Vector4(-1f, -1f, 1f, 1f));
 
         ListOfSectorLists[input].Add(ASector);
 
@@ -698,7 +1161,7 @@ public class LevelLoader : MonoBehaviour
             {
                 SectorMeta sector = ListOfSectorLists[input][b];
 
-                Rect rectangleIn = ListOfRectangleLists[input][b];
+                Vector4 rectangleIn = ListOfRectangleLists[input][b];
 
                 debugRectangles.Add(rectangleIn);
 
@@ -719,63 +1182,7 @@ public class LevelLoader : MonoBehaviour
 
                     if (rendersector != -1)
                     {
-                        for (int d = polygon.triangleStartIndex; d < polygon.triangleStartIndex + polygon.triangleCount; d += 3)
-                        {
-                            clipEdges.Clear();
-
-                            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[d]].x, LevelLists.vertices[LevelLists.triangles[d]].y, LevelLists.vertices[LevelLists.triangles[d]].z, 1.0f);
-                            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[d + 1]].x, LevelLists.vertices[LevelLists.triangles[d + 1]].y, LevelLists.vertices[LevelLists.triangles[d + 1]].z, 1.0f);
-                            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[d + 2]].x, LevelLists.vertices[LevelLists.triangles[d + 2]].y, LevelLists.vertices[LevelLists.triangles[d + 2]].z, 1.0f);
-
-                            Vector4 v0clip = projection * v0view;
-                            Vector4 v1clip = projection * v1view;
-                            Vector4 v2clip = projection * v2view;
-
-                            clipEdges.Add(v0clip);
-                            clipEdges.Add(v1clip);
-
-                            clipEdges.Add(v1clip);
-                            clipEdges.Add(v2clip);
-
-                            clipEdges.Add(v2clip);
-                            clipEdges.Add(v0clip);
-
-                            ClipEdgesWithRectangle(rectangleIn, clipEdges);
-
-                            if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
-                            {
-                                continue;
-                            }
-
-                            Rect rectangleOut = MakeRectangle(OutEdgeVertices);
-
-                            if (DegenerateRectangle(rectangleOut))
-                            {
-                                continue;
-                            }
-
-                            if (RectanglesDoNotOverlap(rectangleIn, rectangleOut))
-                            {
-                                continue;
-                            }
-
-                            Rect rectangleScreen = MakeScreenRectangle(rectangleOut);
-
-                            Triangle tri = new Triangle();
-
-                            tri.v0 = v0clip;
-                            tri.v1 = v1clip;
-                            tri.v2 = v2clip;
-                            tri.uv0 = LevelLists.textures[LevelLists.triangles[d]];
-                            tri.uv1 = LevelLists.textures[LevelLists.triangles[d + 1]];
-                            tri.uv2 = LevelLists.textures[LevelLists.triangles[d + 2]];
-                            tri.n0 = LevelLists.normals[LevelLists.triangles[d]];
-                            tri.n1 = LevelLists.normals[LevelLists.triangles[d + 1]];
-                            tri.n2 = LevelLists.normals[LevelLists.triangles[d + 2]];
-                            tri.rect = new Vector4(rectangleScreen.xMin, rectangleScreen.yMin, rectangleScreen.xMax, rectangleScreen.yMax);
-
-                            outTriangles.Add(tri);
-                        }
+                        ClipTrianglesWithRectangle(rectangleIn, polygon);
 
                         continue;
                     }
@@ -799,28 +1206,12 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        clipEdges.Clear();
-
-                        for (int e = polygon.edgeStartIndex; e < polygon.edgeStartIndex + polygon.edgeCount; e += 2)
-                        {
-                            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[e]].x, LevelLists.vertices[LevelLists.edges[e]].y, LevelLists.vertices[LevelLists.edges[e]].z, 1.0f);
-                            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[e + 1]].x, LevelLists.vertices[LevelLists.edges[e + 1]].y, LevelLists.vertices[LevelLists.edges[e + 1]].z, 1.0f);
-
-                            Vector4 v0clip = projection * v0view;
-                            Vector4 v1clip = projection * v1view;
-
-                            clipEdges.Add(v0clip);
-                            clipEdges.Add(v1clip);
-                        }
-
-                        ClipEdgesWithRectangle(rectangleIn, clipEdges);
+                        Vector4 rectangleOut = ClipEdgesWithRectangle(rectangleIn, polygon);
 
                         if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
                         {
                             continue;
                         }
-
-                        Rect rectangleOut = MakeRectangle(OutEdgeVertices);
 
                         if (DegenerateRectangle(rectangleOut))
                         {
@@ -843,56 +1234,14 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public bool DegenerateRectangle(Rect r)
+    public bool DegenerateRectangle(Vector4 r)
     {
-        return r.xMin >= r.xMax || r.yMin >= r.yMax || (r.xMax - r.xMin) < 0.001f || (r.yMax - r.yMin) < 0.001f;
+        return r.x >= r.z || r.y >= r.w || (r.z - r.x) < 0.001f || (r.w - r.y) < 0.001f;
     }
 
-    public bool RectanglesDoNotOverlap(Rect a, Rect b)
+    public bool RectanglesDoNotOverlap(Vector4 a, Vector4 b)
     {
-        return a.xMax < b.xMin || a.xMin > b.xMax || a.yMax < b.yMin || a.yMin > b.yMax;
-    }
-
-    public Rect MakeRectangle(List<Vector3> ndcEdges)
-    {
-        float xmin = float.PositiveInfinity;
-        float ymin = float.PositiveInfinity;
-        float xmax = float.NegativeInfinity;
-        float ymax = float.NegativeInfinity;
-
-        for (int i = 0; i < ndcEdges.Count; i++)
-        {
-            Vector3 v = ndcEdges[i];
-
-            if (v.x < xmin)
-            {
-                xmin = v.x;
-            }
-            if (v.x > xmax)
-            {
-                xmax = v.x;
-            }
-            if (v.y < ymin)
-            {
-                ymin = v.y;
-            }
-            if (v.y > ymax)
-            {
-                ymax = v.y;
-            }
-        }
-
-        return Rect.MinMaxRect(xmin, ymin, xmax, ymax);
-    }
-
-    public Rect MakeScreenRectangle(Rect rectangle)
-    {
-        float xmin = (rectangle.xMin * 0.5f + 0.5f) * Screen.width;
-        float xmax = (rectangle.xMax * 0.5f + 0.5f) * Screen.width;
-        float ymin = (rectangle.yMin * 0.5f + 0.5f) * Screen.height;
-        float ymax = (rectangle.yMax * 0.5f + 0.5f) * Screen.height;
-
-        return Rect.MinMaxRect(xmin, ymin, xmax, ymax);
+        return a.z < b.x || a.x > b.z || a.w < b.y || a.y > b.w;
     }
 
     public void PlayerStart()

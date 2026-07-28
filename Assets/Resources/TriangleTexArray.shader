@@ -34,7 +34,7 @@ Shader "Custom/TriangleTexArray"
                 float2 uv : TEXCOORD0;
                 float index : TEXCOORD1;
                 float4 aabb : TEXCOORD2;
-                float4 clip : TEXCOORD3; 
+                float4 clip : TEXCOORD3;
             };
 
             v2f vert(uint id : SV_VertexID)
@@ -60,7 +60,7 @@ Shader "Custom/TriangleTexArray"
                 else
                 {
                     clipTriangle = tri.v2;
-                    uvTriangle = tri.uv2;
+                    uvTriangle = tri.uv2; 
                 }
 
                 v2f o;
@@ -81,14 +81,15 @@ Shader "Custom/TriangleTexArray"
                 screen.x = (ndc.x * 0.5 + 0.5) * _ScreenParams.x;
                 screen.y = (ndc.y * 0.5 + 0.5) * _ScreenParams.y;
 
-                float xmin = i.aabb.x - 0.5f;
-                float ymin = i.aabb.y - 0.5f;
-                float xmax = i.aabb.z + 0.5f;
-                float ymax = i.aabb.w + 0.5f;
+                float epsilon = 0.5f;
+                float xmin = i.aabb.x - epsilon;
+                float ymin = i.aabb.y - epsilon;
+                float xmax = i.aabb.z + epsilon;
+                float ymax = i.aabb.w + epsilon;
 
                 if (screen.x < xmin || screen.x > xmax || screen.y < ymin || screen.y > ymax)
                 {
-                    clip(-1);
+                    discard;
                 }
 
                 return UNITY_SAMPLE_TEX2DARRAY(_MainTex, float3(i.uv, i.index));
