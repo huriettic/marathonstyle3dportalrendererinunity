@@ -518,11 +518,8 @@ public class LevelLoader : MonoBehaviour
                 float invw0 = 1.0f / clip0.w;
                 float invw1 = 1.0f / clip1.w;
 
-                Vector3 ndc0 = new Vector3(clip0.x * invw0, clip0.y * invw0, clip0.z * invw0);
-                Vector3 ndc1 = new Vector3(clip1.x * invw1, clip1.y * invw1, clip1.z * invw1);
-
-                Vector2 screen0 = new Vector2((ndc0.x * 0.5f + 0.5f) * Screen.width, (ndc0.y * 0.5f + 0.5f) * Screen.height);
-                Vector2 screen1 = new Vector2((ndc1.x * 0.5f + 0.5f) * Screen.width, (ndc1.y * 0.5f + 0.5f) * Screen.height);
+                Vector2 screen0 = new Vector2((clip0.x * invw0 * 0.5f + 0.5f) * Screen.width, (clip0.y * invw0 * 0.5f + 0.5f) * Screen.height);
+                Vector2 screen1 = new Vector2((clip1.x * invw1 * 0.5f + 0.5f) * Screen.width, (clip1.y * invw1 * 0.5f + 0.5f) * Screen.height);
 
                 OutEdgeVertices.Add(screen0);
                 OutEdgeVertices.Add(screen1);
@@ -888,13 +885,9 @@ public class LevelLoader : MonoBehaviour
                     float invw1 = 1.0f / clip1.w;
                     float invw2 = 1.0f / clip2.w;
 
-                    Vector3 ndc0 = new Vector3(clip0.x * invw0, clip0.y * invw0, clip0.z * invw0);
-                    Vector3 ndc1 = new Vector3(clip1.x * invw1, clip1.y * invw1, clip1.z * invw1);
-                    Vector3 ndc2 = new Vector3(clip2.x * invw2, clip2.y * invw2, clip2.z * invw2);
-
-                    Vector2 screen0 = new Vector2((ndc0.x * 0.5f + 0.5f) * Screen.width, (ndc0.y * 0.5f + 0.5f) * Screen.height);
-                    Vector2 screen1 = new Vector2((ndc1.x * 0.5f + 0.5f) * Screen.width, (ndc1.y * 0.5f + 0.5f) * Screen.height);
-                    Vector2 screen2 = new Vector2((ndc2.x * 0.5f + 0.5f) * Screen.width, (ndc2.y * 0.5f + 0.5f) * Screen.height);
+                    Vector2 screen0 = new Vector2((clip0.x * invw0 * 0.5f + 0.5f) * Screen.width, (clip0.y * invw0 * 0.5f + 0.5f) * Screen.height);
+                    Vector2 screen1 = new Vector2((clip1.x * invw1 * 0.5f + 0.5f) * Screen.width, (clip1.y * invw1 * 0.5f + 0.5f) * Screen.height);
+                    Vector2 screen2 = new Vector2((clip2.x * invw2 * 0.5f + 0.5f) * Screen.width, (clip2.y * invw2 * 0.5f + 0.5f) * Screen.height);
 
                     float xmin = float.PositiveInfinity;
                     float ymin = float.PositiveInfinity;
