@@ -950,7 +950,7 @@ public class LevelLoader : MonoBehaviour
                     float combinedxmax = Mathf.Min(rectangle.z, xmax);
                     float combinedymax = Mathf.Min(rectangle.w, ymax);
 
-                    if (xmin >= xmax || ymin >= ymax)
+                    if (combinedxmin >= combinedxmax || combinedymin >= combinedymax)
                     {
                         continue;
                     }
