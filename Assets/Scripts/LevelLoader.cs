@@ -99,7 +99,7 @@ public class LevelLoader : MonoBehaviour
     SectorMeta NextSector;
     List<SectorMeta> Sectors = new List<SectorMeta>();
     List<SectorMeta> OldSectors = new List<SectorMeta>();
-    List<Vector3> OutEdgeVertices = new List<Vector3>();
+    List<Vector2> OutEdgeVertices = new List<Vector2>();
     bool radius;
     bool check;
     float planeDistance;
@@ -162,10 +162,10 @@ public class LevelLoader : MonoBehaviour
         {
             Vector4 rectangle = debugRectangles[i];
 
-            float xmin = (rectangle.x * 0.5f + 0.5f) * Screen.width;
-            float ymin = (rectangle.y * 0.5f + 0.5f) * Screen.height;
-            float xmax = (rectangle.z * 0.5f + 0.5f) * Screen.width;
-            float ymax = (rectangle.w * 0.5f + 0.5f) * Screen.height;
+            float xmin = rectangle.x;
+            float ymin = rectangle.y;
+            float xmax = rectangle.z;
+            float ymax = rectangle.w;
 
             MakeLeftLine(xmin, ymin, xmin, ymax, 5.0f); // left
             MakeRightLine(xmax, ymin, xmax, ymax, 5.0f); // right
@@ -404,31 +404,26 @@ public class LevelLoader : MonoBehaviour
 
                 float d0, d1;
 
-                float clipxmin = rectangle.x;
-                float clipymin = rectangle.y;
-                float clipxmax = rectangle.z;
-                float clipymax = rectangle.w;
-
                 switch (b)
                 {
                     case 0: // Left
-                        d0 = v0.x - clipxmin * v0.w;
-                        d1 = v1.x - clipxmin * v1.w;
+                        d0 = v0.x + v0.w;
+                        d1 = v1.x + v1.w;
                         break;
 
                     case 1: // Right
-                        d0 = clipxmax * v0.w - v0.x;
-                        d1 = clipxmax * v1.w - v1.x;
+                        d0 = v0.w - v0.x;
+                        d1 = v1.w - v1.x;
                         break;
 
                     case 2: // Bottom
-                        d0 = v0.y - clipymin * v0.w;
-                        d1 = v1.y - clipymin * v1.w;
+                        d0 = v0.y + v0.w;
+                        d1 = v1.y + v1.w;
                         break;
 
                     case 3: // Top
-                        d0 = clipymax * v0.w - v0.y;
-                        d1 = clipymax * v1.w - v1.y;
+                        d0 = v0.w - v0.y;
+                        d1 = v1.w - v1.y;
                         break;
 
                     case 4: // Near
@@ -526,8 +521,11 @@ public class LevelLoader : MonoBehaviour
                 Vector3 ndc0 = new Vector3(clip0.x * invw0, clip0.y * invw0, clip0.z * invw0);
                 Vector3 ndc1 = new Vector3(clip1.x * invw1, clip1.y * invw1, clip1.z * invw1);
 
-                OutEdgeVertices.Add(ndc0);
-                OutEdgeVertices.Add(ndc1);
+                Vector2 screen0 = new Vector2((ndc0.x * 0.5f + 0.5f) * Screen.width, (ndc0.y * 0.5f + 0.5f) * Screen.height);
+                Vector2 screen1 = new Vector2((ndc1.x * 0.5f + 0.5f) * Screen.width, (ndc1.y * 0.5f + 0.5f) * Screen.height);
+
+                OutEdgeVertices.Add(screen0);
+                OutEdgeVertices.Add(screen1);
             }
         }
 
@@ -538,7 +536,7 @@ public class LevelLoader : MonoBehaviour
 
         for (int i = 0; i < OutEdgeVertices.Count; i++)
         {
-            Vector3 v = OutEdgeVertices[i];
+            Vector2 v = OutEdgeVertices[i];
 
             if (v.x < xmin)
             {
@@ -624,35 +622,30 @@ public class LevelLoader : MonoBehaviour
 
                     float d0, d1, d2;
 
-                    float clipxmin = rectangle.x;
-                    float clipymin = rectangle.y;
-                    float clipxmax = rectangle.z;
-                    float clipymax = rectangle.w;
-
                     switch (b)
                     {
                         case 0: // Left
-                            d0 = v0.x - clipxmin * v0.w;
-                            d1 = v1.x - clipxmin * v1.w;
-                            d2 = v2.x - clipxmin * v2.w;
+                            d0 = v0.x + v0.w;
+                            d1 = v1.x + v1.w;
+                            d2 = v2.x + v2.w;
                             break;
 
                         case 1: // Right
-                            d0 = clipxmax * v0.w - v0.x;
-                            d1 = clipxmax * v1.w - v1.x;
-                            d2 = clipxmax * v2.w - v2.x;
+                            d0 = v0.w - v0.x;
+                            d1 = v1.w - v1.x;
+                            d2 = v2.w - v2.x;
                             break;
 
                         case 2: // Bottom
-                            d0 = v0.y - clipymin * v0.w;
-                            d1 = v1.y - clipymin * v1.w;
-                            d2 = v2.y - clipymin * v2.w;
+                            d0 = v0.y + v0.w;
+                            d1 = v1.y + v1.w;
+                            d2 = v2.y + v2.w;
                             break;
 
                         case 3: // Top
-                            d0 = clipymax * v0.w - v0.y;
-                            d1 = clipymax * v1.w - v1.y;
-                            d2 = clipymax * v2.w - v2.y;
+                            d0 = v0.w - v0.y;
+                            d1 = v1.w - v1.y;
+                            d2 = v2.w - v2.y;
                             break;
 
                         case 4: // Near
@@ -959,6 +952,16 @@ public class LevelLoader : MonoBehaviour
                         ymax = screen2.y;
                     }
 
+                    float combinedxmin = Mathf.Max(rectangle.x, xmin);
+                    float combinedymin = Mathf.Max(rectangle.y, ymin);
+                    float combinedxmax = Mathf.Min(rectangle.z, xmax);
+                    float combinedymax = Mathf.Min(rectangle.w, ymax);
+
+                    if (xmin >= xmax || ymin >= ymax)
+                    {
+                        continue;
+                    }
+
                     Triangle tri = new Triangle();
 
                     tri.v0 = clip0;
@@ -970,7 +973,7 @@ public class LevelLoader : MonoBehaviour
                     tri.n0 = processnormals[e];
                     tri.n1 = processnormals[e + 1];
                     tri.n2 = processnormals[e + 2];
-                    tri.rect = new Vector4(xmin, ymin, xmax, ymax);
+                    tri.rect = new Vector4(combinedxmin, combinedymin, combinedxmax, combinedymax);
 
                     outTriangles.Add(tri);
                 }
@@ -1131,7 +1134,7 @@ public class LevelLoader : MonoBehaviour
         ListOfRectangleLists[input].Clear();
         ListOfRectangleLists[output].Clear();
 
-        ListOfRectangleLists[input].Add(new Vector4(-1f, -1f, 1f, 1f));
+        ListOfRectangleLists[input].Add(new Vector4(0f, 0f, Screen.width, Screen.height));
 
         ListOfSectorLists[input].Add(ASector);
 
@@ -1223,7 +1226,9 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        ListOfRectangleLists[output].Add(rectangleOut);
+                        Vector4 combinedRectangle = IntersectRectangles(rectangleIn, rectangleOut);
+
+                        ListOfRectangleLists[output].Add(combinedRectangle);
 
                         NextSector = sectorpolygon;
 
@@ -1242,6 +1247,21 @@ public class LevelLoader : MonoBehaviour
     public bool RectanglesDoNotOverlap(Vector4 a, Vector4 b)
     {
         return a.z < b.x || a.x > b.z || a.w < b.y || a.y > b.w;
+    }
+
+    public Vector4 IntersectRectangles(Vector4 a, Vector4 b)
+    {
+        float xmin = Mathf.Max(a.x, b.x);
+        float ymin = Mathf.Max(a.y, b.y);
+        float xmax = Mathf.Min(a.z, b.z);
+        float ymax = Mathf.Min(a.w, b.w);
+
+        if (xmin >= xmax || ymin >= ymax)
+        {
+            return new Vector4(0, 0, 0, 0);
+        }
+
+        return new Vector4(xmin, ymin, xmax, ymax);
     }
 
     public void PlayerStart()
