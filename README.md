@@ -66,7 +66,7 @@ This makes a reduced screen space area for rasterization.
 
 
 
-Because triangles and portals are clipped in clip space first, all resulting AABBs are fully inside the frustum, it converts into screen space (AABB) that never produce invalid or inverted rectangles and remains stable under deep portal recursion.
+Because triangles and portals are clipped in clip space first, all resulting AABBs are fully inside the frustum, it's a screen space AABB that is never invalid or an inverted rectangle and remains stable under deep portal recursion.
 
 
 
