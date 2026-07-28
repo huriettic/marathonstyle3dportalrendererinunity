@@ -2,11 +2,11 @@
 
 
 
-This project implements a Marathon style 3D portal renderer in Unity, inspired by Bisqwit's portal rendering tutorial and Bunny83’s VisPortals system.
+This project implements a Marathon-style recursive 3D portal renderer in Unity, inspired by Bisqwit's portal rendering tutorial and Bunny83's VisPortals system.
 
 
 
-The renderer is capable of playing Bisqwit's map-clear.txt tutorial level.
+The renderer can play Bisqwit's map-clear.txt tutorial level.
 
 
 
@@ -16,89 +16,83 @@ The renderer is capable of playing Bisqwit's map-clear.txt tutorial level.
 
 This repository does not contain any files from Bisqwit's portal rendering tutorial video.
 
-You must download map-clear.txt from the video description and place it in the project’s Resources folder.
-
 
 
 [Watch the video on YouTube.](https://www.youtube.com/watch?v=HQYsFshbkYw)
 
 
 
-#### 1\. Clip space geometric clipping
+You must download map-clear.txt from the video description and place it in the project’s Resources folder.
 
 
 
-Portals and triangles are first clipped in clip space against:
+## 1\. Clip space geometric clipping
 
 
 
-the camera frustum
+All triangles and portal polygons are clipped in clip space against the camera frustum.
 
 
 
-portal planes
+This produces a clipped polygon fully inside the clip space frustum.
 
 
 
-portal rectangles
+## 2\. Conversion to screen space and AABB generation
 
 
 
-This ensures all surviving geometry lies fully inside the clip space frustum.
+The clipped polygon is converted to NDC space, then to screen space.
 
 
 
-#### 2\. NDC space AABB generation
+A screen space axis aligned bounding box (AABB) is made for triangles and portals.
 
 
 
-The clipped vertices are converted to NDC space, where an axis aligned bounding box (AABB) is computed.
-
-This AABB represents the visible region of the portal.
+## 3\. Screen space AABB intersection
 
 
 
-#### 3\. Clipping using AABBs
+Instead of converting NDC space AABBs back into clip space and re-clipping geometry,
+
+the renderer now does screen space AABB intersection.
 
 
 
-When clipping portals against an AABB, the AABB is converted back into clip space so the same clipper can be used to clip triangles. The triangles are clipped by portal AABB and the triangles AABB is converted to screen space.
+This makes a reduced screen space area for rasterization.
 
 
 
-#### 4\. The guarantee
+## 4\. Stability guaranteed
 
 
 
-If a portal or triangle has already been clipped by the frustum, any AABB created from the clipped geometry is guaranteed to lie entirely inside the NDC frustum.
+Because triangles and portals are clipped in clip space first, all resulting AABBs are fully inside the frustum, it converts into screen space (AABB) that never produce invalid or inverted rectangles and remains stable under deep portal recursion.
 
 
 
-#### 5\. Screen space rasterization
+## 5\. Screen space rasterization
 
 
 
-The fragment shader rasterizes triangles only inside their screen space AABB.
+The fragment shader rasterizes the original triangle only inside the intersected screen space AABB.
 
 
 
-##### Usage
+This is significantly faster and simpler than geometric re-clipping with clip space.
 
 
 
-Add map-clear.txt from Bisqwit's tutorial video to the Resources folder.
+#### Usage
 
 
 
-(the file is not included in this repository)
+Add map-clear.txt from Bisqwit's tutorial video to the Resources folder or use the included Two Hallways level.
 
 
 
-Or use the included Two Hallways level.
-
-
-
-Toggle Debug Mode to visualize portal regions.
+Toggle debug mode to visualize portals.
 
 
 
@@ -106,15 +100,15 @@ Toggle Debug Mode to visualize portal regions.
 
 
 
-##### Credits
+#### Credits
 
 
 
-This project uses code from VisPortals by Bunny83.
+This project uses code derived from VisPortals by Bunny83.
 
 
 
-VisPortals by Bunny83  
+VisPortals by Bunny83
 
 * License: MIT
 * Copyright: © 2016 Bunny83
