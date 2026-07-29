@@ -22,7 +22,7 @@ This repository does not contain any files from Bisqwit's portal rendering tutor
 
 
 
-You must download map-clear.txt from the video description and place it in the project's Resources folder.
+Download map-clear.txt from the video description and place it in the project's Resources folder.
 
 
 
