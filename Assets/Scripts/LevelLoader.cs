@@ -49,6 +49,7 @@ public struct SectorMeta
     public int polygonStartIndex;
     public int polygonCount;
 
+    public int rectangle;
     public int sectorId;
 };
 
@@ -92,11 +93,9 @@ public class LevelLoader : MonoBehaviour
     Vector3[] temporarytextures;
     Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
-    List<List<Vector4>> ListOfRectangleLists = new List<List<Vector4>>();
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
-    SectorMeta NextSector;
     List<SectorMeta> Sectors = new List<SectorMeta>();
     List<SectorMeta> OldSectors = new List<SectorMeta>();
     List<Vector2> OutEdgeVertices = new List<Vector2>();
@@ -115,7 +114,7 @@ public class LevelLoader : MonoBehaviour
     List<Triangle> outTriangles = new List<Triangle>();
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
-    List<Vector4> debugRectangles = new List<Vector4>();
+    List<Vector4> sectorRectangles = new List<Vector4>();
     Texture2D linetexture;
 
     [Serializable]
@@ -158,9 +157,9 @@ public class LevelLoader : MonoBehaviour
 
         GUI.color = Color.blue;
 
-        for (int i = 0; i < debugRectangles.Count; i++)
+        for (int i = 0; i < sectorRectangles.Count; i++)
         {
-            Vector4 rectangle = debugRectangles[i];
+            Vector4 rectangle = sectorRectangles[i];
 
             float xmin = rectangle.x;
             float ymin = rectangle.y;
@@ -224,11 +223,6 @@ public class LevelLoader : MonoBehaviour
             ListOfSectorLists.Add(new List<SectorMeta>());
         }
 
-        for (int i = 0; i < 2; i++)
-        {
-            ListOfRectangleLists.Add(new List<Vector4>());
-        }
-
         for (int i = 0; i < LevelLists.sectors.Count; i++)
         {
             Physics.IgnoreCollision(Player, CollisionSectors[LevelLists.sectors[i].sectorId], true);
@@ -257,7 +251,7 @@ public class LevelLoader : MonoBehaviour
 
             outTriangles.Clear();
 
-            debugRectangles.Clear();
+            sectorRectangles.Clear();
 
             GetPolygons(CurrentSector);
 
@@ -1124,10 +1118,7 @@ public class LevelLoader : MonoBehaviour
         ListOfSectorLists[input].Clear();
         ListOfSectorLists[output].Clear();
 
-        ListOfRectangleLists[input].Clear();
-        ListOfRectangleLists[output].Clear();
-
-        ListOfRectangleLists[input].Add(new Vector4(0f, 0f, Screen.width, Screen.height));
+        sectorRectangles.Add(new Vector4(0f, 0f, Screen.width, Screen.height));
 
         ListOfSectorLists[input].Add(ASector);
 
@@ -1144,8 +1135,6 @@ public class LevelLoader : MonoBehaviour
                 output = 0;
             }
 
-            ListOfRectangleLists[output].Clear();
-
             ListOfSectorLists[output].Clear();
 
             if (ListOfSectorLists[input].Count == 0)
@@ -1157,9 +1146,7 @@ public class LevelLoader : MonoBehaviour
             {
                 SectorMeta sector = ListOfSectorLists[input][b];
 
-                Vector4 rectangleIn = ListOfRectangleLists[input][b];
-
-                debugRectangles.Add(rectangleIn);
+                Vector4 rectangleIn = sectorRectangles[sector.rectangle];
 
                 for (int c = sector.polygonStartIndex; c < sector.polygonStartIndex + sector.polygonCount; c++)
                 {
@@ -1193,11 +1180,18 @@ public class LevelLoader : MonoBehaviour
 
                         if (SectorsContains(sectorpolygon.sectorId))
                         {
-                            ListOfRectangleLists[output].Add(rectangleIn);
+                            sectorRectangles.Add(rectangleIn);
 
-                            NextSector = sectorpolygon;
+                            SectorMeta ContactSector = new SectorMeta
+                            {
+                                polygonStartIndex = sectorpolygon.polygonStartIndex,
+                                polygonCount = sectorpolygon.polygonCount,
 
-                            ListOfSectorLists[output].Add(NextSector);
+                                rectangle = sectorRectangles.Count - 1,
+                                sectorId = sectorpolygon.sectorId
+                            };
+
+                            ListOfSectorLists[output].Add(ContactSector);
 
                             continue;
                         }
@@ -1221,11 +1215,18 @@ public class LevelLoader : MonoBehaviour
 
                         Vector4 combinedRectangle = IntersectRectangles(rectangleIn, rectangleOut);
 
-                        ListOfRectangleLists[output].Add(combinedRectangle);
+                        sectorRectangles.Add(combinedRectangle);
 
-                        NextSector = sectorpolygon;
+                        SectorMeta VisibleSector = new SectorMeta
+                        {
+                            polygonStartIndex = sectorpolygon.polygonStartIndex,
+                            polygonCount = sectorpolygon.polygonCount,
 
-                        ListOfSectorLists[output].Add(NextSector);
+                            rectangle = sectorRectangles.Count - 1,
+                            sectorId = sectorpolygon.sectorId
+                        };
+
+                        ListOfSectorLists[output].Add(VisibleSector);
                     }
                 }
             }
@@ -2131,6 +2132,7 @@ public class LevelLoader : MonoBehaviour
             SectorMeta sectorMeta = new SectorMeta
             {
                 sectorId = i,
+                rectangle = 0,
                 polygonStartIndex = polygonStart,
                 polygonCount = polygonCount,
             };
