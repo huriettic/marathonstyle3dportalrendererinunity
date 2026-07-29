@@ -108,8 +108,7 @@ public class LevelLoader : MonoBehaviour
     MathematicalPlane TopPlane;
     List<Vector3> flooruvs = new List<Vector3>();
     List<Vector3> ceilinguvs = new List<Vector3>();
-    Matrix4x4 view;
-    Matrix4x4 projection;
+    Matrix4x4 viewProjection;
     GraphicsBuffer triBuffer;
     List<Triangle> outTriangles = new List<Triangle>();
     List<Vector3> colliderVertices = new List<Vector3>();
@@ -241,9 +240,11 @@ public class LevelLoader : MonoBehaviour
 
         if (Cam.transform.hasChanged)
         {
-            view = Cam.worldToCameraMatrix;
+            Matrix4x4 view = Cam.worldToCameraMatrix;
 
-            projection = GL.GetGPUProjectionMatrix(Cam.projectionMatrix, true);
+            Matrix4x4 projection = GL.GetGPUProjectionMatrix(Cam.projectionMatrix, true);
+
+            viewProjection = projection * view;
 
             CamPoint = Cam.transform.position;
 
@@ -282,6 +283,18 @@ public class LevelLoader : MonoBehaviour
         {
             currentForce.y -= gravity * Time.deltaTime;
         }
+    }
+
+    public Vector4 ConvertWorldToClip(Matrix4x4 viewProj, Vector3 vertex)
+    {
+        return viewProj * new Vector4(vertex.x, vertex.y, vertex.z, 1.0f);
+    }
+
+    public Vector2 ConvertClipToScreen(Vector4 vertex)
+    {
+        float invw = 1.0f / vertex.w;
+
+        return new Vector2((vertex.x * invw * 0.5f + 0.5f) * Screen.width, (vertex.y * invw * 0.5f + 0.5f) * Screen.height);
     }
 
     public void MakeLeftLine(float x1, float y1, float x2, float y2, float linethickness)
@@ -363,11 +376,8 @@ public class LevelLoader : MonoBehaviour
 
         for (int a = portal.edgeStartIndex; a < portal.edgeStartIndex + portal.edgeCount; a += 2)
         {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a]].x, LevelLists.vertices[LevelLists.edges[a]].y, LevelLists.vertices[LevelLists.edges[a]].z, 1.0f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.edges[a + 1]].x, LevelLists.vertices[LevelLists.edges[a + 1]].y, LevelLists.vertices[LevelLists.edges[a + 1]].z, 1.0f);
-
-            Vector4 v0clip = projection * v0view;
-            Vector4 v1clip = projection * v1view;
+            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.edges[a]]);
+            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.edges[a + 1]]);
 
             processvertices[processverticescount] = v0clip;
             processvertices[processverticescount + 1] = v1clip;
@@ -509,11 +519,8 @@ public class LevelLoader : MonoBehaviour
                 Vector4 clip0 = processvertices[e];
                 Vector4 clip1 = processvertices[e + 1];
 
-                float invw0 = 1.0f / clip0.w;
-                float invw1 = 1.0f / clip1.w;
-
-                Vector2 screen0 = new Vector2((clip0.x * invw0 * 0.5f + 0.5f) * Screen.width, (clip0.y * invw0 * 0.5f + 0.5f) * Screen.height);
-                Vector2 screen1 = new Vector2((clip1.x * invw1 * 0.5f + 0.5f) * Screen.width, (clip1.y * invw1 * 0.5f + 0.5f) * Screen.height);
+                Vector2 screen0 = ConvertClipToScreen(clip0);
+                Vector2 screen1 = ConvertClipToScreen(clip1);
 
                 OutEdgeVertices.Add(screen0);
                 OutEdgeVertices.Add(screen1);
@@ -554,13 +561,9 @@ public class LevelLoader : MonoBehaviour
     {
         for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
         {
-            Vector4 v0view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a]].x, LevelLists.vertices[LevelLists.triangles[a]].y, LevelLists.vertices[LevelLists.triangles[a]].z, 1.0f);
-            Vector4 v1view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 1]].x, LevelLists.vertices[LevelLists.triangles[a + 1]].y, LevelLists.vertices[LevelLists.triangles[a + 1]].z, 1.0f);
-            Vector4 v2view = view * new Vector4(LevelLists.vertices[LevelLists.triangles[a + 2]].x, LevelLists.vertices[LevelLists.triangles[a + 2]].y, LevelLists.vertices[LevelLists.triangles[a + 2]].z, 1.0f);
-
-            Vector4 v0clip = projection * v0view;
-            Vector4 v1clip = projection * v1view;
-            Vector4 v2clip = projection * v2view;
+            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.triangles[a]]);
+            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.triangles[a + 1]]);
+            Vector4 v2clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.triangles[a + 2]]);
 
             int processverticescount = 0;
             int processtexturescount = 0;
@@ -875,13 +878,9 @@ public class LevelLoader : MonoBehaviour
                     Vector4 clip1 = processvertices[e + 1];
                     Vector4 clip2 = processvertices[e + 2];
 
-                    float invw0 = 1.0f / clip0.w;
-                    float invw1 = 1.0f / clip1.w;
-                    float invw2 = 1.0f / clip2.w;
-
-                    Vector2 screen0 = new Vector2((clip0.x * invw0 * 0.5f + 0.5f) * Screen.width, (clip0.y * invw0 * 0.5f + 0.5f) * Screen.height);
-                    Vector2 screen1 = new Vector2((clip1.x * invw1 * 0.5f + 0.5f) * Screen.width, (clip1.y * invw1 * 0.5f + 0.5f) * Screen.height);
-                    Vector2 screen2 = new Vector2((clip2.x * invw2 * 0.5f + 0.5f) * Screen.width, (clip2.y * invw2 * 0.5f + 0.5f) * Screen.height);
+                    Vector2 screen0 = ConvertClipToScreen(clip0);
+                    Vector2 screen1 = ConvertClipToScreen(clip1);
+                    Vector2 screen2 = ConvertClipToScreen(clip2);
 
                     float xmin = float.PositiveInfinity;
                     float ymin = float.PositiveInfinity;
