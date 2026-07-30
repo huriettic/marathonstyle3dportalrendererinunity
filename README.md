@@ -30,11 +30,11 @@ Download map-clear.txt from the video description and place it in the project's 
 
 
 
-All triangles and portal polygons are clipped in clip space against the camera frustum.
+All triangles and portals are clipped in clip space against the camera frustum.
 
 
 
-This produces a clipped polygon fully inside the clip space frustum.
+This produces a clipped portal or triangle fully inside the clip space frustum.
 
 
 
@@ -42,7 +42,7 @@ This produces a clipped polygon fully inside the clip space frustum.
 
 
 
-The clipped polygon is converted from clip space to screen space.
+The clipped portal or triangle is converted from clip space to screen space.
 
 
 
@@ -58,7 +58,7 @@ Instead of converting NDC space AABBs back into clip space and re-clipping geome
 
 
 
-This makes a reduced screen space area for rasterization.
+This makes a reduced screen space AABB for the portals and triangles.
 
 
 
@@ -74,7 +74,7 @@ Because triangles and portals are clipped in clip space first, all resulting AAB
 
 
 
-The fragment shader discards the original triangle pixels only outside the intersected screen space AABB.
+The fragment shader discards the triangle pixels only outside the intersected screen space AABB.
 
 
 
