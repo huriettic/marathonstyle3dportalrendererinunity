@@ -70,11 +70,11 @@ Because triangles and portals are clipped in clip space first, all resulting AAB
 
 
 
-## 5\. Screen space rasterization
+## 5\. Screen space discarding pixels
 
 
 
-The fragment shader rasterizes the original triangle only inside the intersected screen space AABB.
+The fragment shader discards the original triangle pixels only outside the intersected screen space AABB.
 
 
 
