@@ -62,7 +62,7 @@ This makes a reduced screen space AABB for the portals and triangles.
 
 
 
-## 4\. Stability guaranteed
+## 4\. Correct AABBs guaranteed
 
 
 
