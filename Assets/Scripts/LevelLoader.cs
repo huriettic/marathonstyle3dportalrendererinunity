@@ -26,19 +26,23 @@ public struct StartPosition
 };
 
 [Serializable]
-public struct PolygonMeta
+public struct TriangleMeta
+{
+    public int triangleStartIndex;
+    public int triangleCount;
+
+    public int collider;
+    public int opaque;
+};
+
+[Serializable]
+public struct PortalMeta
 {
     public int edgeStartIndex;
     public int edgeCount;
 
-    public int triangleStartIndex;
-    public int triangleCount;
-
     public int connectedSectorId;
     public int sectorId;
-
-    public int collider;
-    public int opaque;
 
     public int plane;
 };
@@ -46,8 +50,14 @@ public struct PolygonMeta
 [Serializable]
 public struct SectorMeta
 {
-    public int polygonStartIndex;
-    public int polygonCount;
+    public int portalStartIndex;
+    public int portalCount;
+
+    public int triangleStartIndex;
+    public int triangleCount;
+
+    public int planeStartIndex;
+    public int planeCount;
 
     public int rectangle;
     public int sectorId;
@@ -93,6 +103,7 @@ public class LevelLoader : MonoBehaviour
     Vector3[] temporarytextures;
     Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
+    List<List<Vector4>> ListOfRectangleLists = new List<List<Vector4>>();
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -114,6 +125,8 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
     List<Vector4> sectorRectangles = new List<Vector4>();
+    int[] visibleSectors;
+    List<Vector4> debugRectangles = new List<Vector4>();
     Texture2D linetexture;
 
     [Serializable]
@@ -139,10 +152,11 @@ public class LevelLoader : MonoBehaviour
         public List<Vector3> vertices = new List<Vector3>();
         public List<Vector3> textures = new List<Vector3>();
         public List<Vector3> normals = new List<Vector3>();
-        public List<int> triangles = new List<int>();
+        public List<int> indices = new List<int>();
         public List<int> edges = new List<int>();
         public List<MathematicalPlane> planes = new List<MathematicalPlane>();
-        public List<PolygonMeta> polygons = new List<PolygonMeta>();
+        public List<PortalMeta> portals = new List<PortalMeta>();
+        public List<TriangleMeta> triangles = new List<TriangleMeta>();
         public List<SectorMeta> sectors = new List<SectorMeta>();
         public List<StartPosition> positions = new List<StartPosition>();
     }
@@ -156,9 +170,9 @@ public class LevelLoader : MonoBehaviour
 
         GUI.color = Color.blue;
 
-        for (int i = 0; i < sectorRectangles.Count; i++)
+        for (int i = 0; i < debugRectangles.Count; i++)
         {
-            Vector4 rectangle = sectorRectangles[i];
+            Vector4 rectangle = debugRectangles[i];
 
             float xmin = rectangle.x;
             float ymin = rectangle.y;
@@ -202,6 +216,8 @@ public class LevelLoader : MonoBehaviour
         BuildColliders();
 
         PlayerStart();
+
+        visibleSectors = new int[LevelLists.sectors.Count];
 
         processbool = new bool[256];
 
@@ -254,7 +270,20 @@ public class LevelLoader : MonoBehaviour
 
             sectorRectangles.Clear();
 
+            debugRectangles.Clear();
+
+            ListOfRectangleLists.Clear();
+
+            for (int i = 0; i < LevelLists.sectors.Count; i++)
+            {
+                ListOfRectangleLists.Add(new List<Vector4>());
+            }
+
+            Array.Clear(visibleSectors, 0, visibleSectors.Length);
+
             GetPolygons(CurrentSector);
+
+            GetTriangles();
 
             Cam.transform.hasChanged = false;
         }
@@ -367,7 +396,7 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
-    public Vector4 ClipEdgesWithRectangle(Vector4 rectangle, PolygonMeta portal)
+    public Vector4 ClipEdgesWithRectangle(Vector4 rectangle, PortalMeta portal)
     {
         OutEdgeVertices.Clear();
 
@@ -557,13 +586,13 @@ public class LevelLoader : MonoBehaviour
         return new Vector4(xmin, ymin, xmax, ymax);
     }
 
-    public void ClipTrianglesWithRectangle(Vector4 rectangle, PolygonMeta polygon)
+    public void ClipTrianglesWithRectangle(Vector4 rectangle, TriangleMeta polygon)
     {
         for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
         {
-            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.triangles[a]]);
-            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.triangles[a + 1]]);
-            Vector4 v2clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.triangles[a + 2]]);
+            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.indices[a]]);
+            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.indices[a + 1]]);
+            Vector4 v2clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.indices[a + 2]]);
 
             int processverticescount = 0;
             int processtexturescount = 0;
@@ -574,13 +603,13 @@ public class LevelLoader : MonoBehaviour
             processvertices[processverticescount + 1] = v1clip;
             processvertices[processverticescount + 2] = v2clip;
             processverticescount += 3;
-            processtextures[processtexturescount] = LevelLists.textures[LevelLists.triangles[a]];
-            processtextures[processtexturescount + 1] = LevelLists.textures[LevelLists.triangles[a + 1]];
-            processtextures[processtexturescount + 2] = LevelLists.textures[LevelLists.triangles[a + 2]];
+            processtextures[processtexturescount] = LevelLists.textures[LevelLists.indices[a]];
+            processtextures[processtexturescount + 1] = LevelLists.textures[LevelLists.indices[a + 1]];
+            processtextures[processtexturescount + 2] = LevelLists.textures[LevelLists.indices[a + 2]];
             processtexturescount += 3;
-            processnormals[processnormalscount] = LevelLists.normals[LevelLists.triangles[a]];
-            processnormals[processnormalscount + 1] = LevelLists.normals[LevelLists.triangles[a + 1]];
-            processnormals[processnormalscount + 2] = LevelLists.normals[LevelLists.triangles[a + 2]];
+            processnormals[processnormalscount] = LevelLists.normals[LevelLists.indices[a]];
+            processnormals[processnormalscount + 1] = LevelLists.normals[LevelLists.indices[a + 1]];
+            processnormals[processnormalscount + 2] = LevelLists.normals[LevelLists.indices[a + 2]];
             processnormalscount += 3;
             processbool[processboolcount] = true;
             processbool[processboolcount + 1] = true;
@@ -969,9 +998,9 @@ public class LevelLoader : MonoBehaviour
 
     public bool CheckRadius(SectorMeta asector, Vector3 campoint)
     {
-        for (int i = asector.polygonStartIndex; i < asector.polygonStartIndex + asector.polygonCount; i++)
+        for (int i = asector.planeStartIndex; i < asector.planeStartIndex + asector.planeCount; i++)
         {
-            if (GetPlaneSignedDistanceToPoint(LevelLists.planes[LevelLists.polygons[i].plane], campoint) < -0.6f)
+            if (GetPlaneSignedDistanceToPoint(LevelLists.planes[i], campoint) < -0.6f)
             {
                 return false;
             }
@@ -981,9 +1010,9 @@ public class LevelLoader : MonoBehaviour
 
     public bool CheckSector(SectorMeta asector, Vector3 campoint)
     {
-        for (int i = asector.polygonStartIndex; i < asector.polygonStartIndex + asector.polygonCount; i++)
+        for (int i = asector.planeStartIndex; i < asector.planeStartIndex + asector.planeCount; i++)
         {
-            if (GetPlaneSignedDistanceToPoint(LevelLists.planes[LevelLists.polygons[i].plane], campoint) < 0)
+            if (GetPlaneSignedDistanceToPoint(LevelLists.planes[i], campoint) < 0)
             {
                 return false;
             }
@@ -1065,14 +1094,9 @@ public class LevelLoader : MonoBehaviour
 
                 Physics.IgnoreCollision(Player, CollisionSectors[sector.sectorId], false);
 
-                for (int d = sector.polygonStartIndex; d < sector.polygonStartIndex + sector.polygonCount; d++)
+                for (int d = sector.portalStartIndex; d < sector.portalStartIndex + sector.portalCount; d++)
                 {
-                    int connectedsector = LevelLists.polygons[d].connectedSectorId;
-
-                    if (connectedsector == -1)
-                    {
-                        continue;
-                    }
+                    int connectedsector = LevelLists.portals[d].connectedSectorId;
 
                     SectorMeta portalsector = LevelLists.sectors[connectedsector];
 
@@ -1147,9 +1171,13 @@ public class LevelLoader : MonoBehaviour
 
                 Vector4 rectangleIn = sectorRectangles[sector.rectangle];
 
-                for (int c = sector.polygonStartIndex; c < sector.polygonStartIndex + sector.polygonCount; c++)
+                ListOfRectangleLists[sector.sectorId].Add(rectangleIn);
+
+                visibleSectors[sector.sectorId] += 1;
+
+                for (int c = sector.portalStartIndex; c < sector.portalStartIndex + sector.portalCount; c++)
                 {
-                    PolygonMeta polygon = LevelLists.polygons[c];
+                    PortalMeta polygon = LevelLists.portals[c];
 
                     planeDistance = GetPlaneSignedDistanceToPoint(LevelLists.planes[polygon.plane], CamPoint);
 
@@ -1158,78 +1186,107 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
-                    int rendersector = polygon.opaque;
-
                     int connectedsector = polygon.connectedSectorId;
 
-                    if (rendersector != -1)
+                    SectorMeta sectorpolygon = LevelLists.sectors[connectedsector];
+
+                    int connectedstart = sectorpolygon.portalStartIndex;
+
+                    int connectedcount = sectorpolygon.portalCount;
+
+                    if (SectorsContains(sectorpolygon.sectorId))
                     {
-                        ClipTrianglesWithRectangle(rectangleIn, polygon);
+                        sectorRectangles.Add(rectangleIn);
 
-                        continue;
-                    }
-
-                    if (connectedsector != -1)
-                    {
-                        SectorMeta sectorpolygon = LevelLists.sectors[connectedsector];
-
-                        int connectedstart = sectorpolygon.polygonStartIndex;
-
-                        int connectedcount = sectorpolygon.polygonCount;
-
-                        if (SectorsContains(sectorpolygon.sectorId))
+                        SectorMeta ContactSector = new SectorMeta
                         {
-                            sectorRectangles.Add(rectangleIn);
-
-                            SectorMeta ContactSector = new SectorMeta
-                            {
-                                polygonStartIndex = sectorpolygon.polygonStartIndex,
-                                polygonCount = sectorpolygon.polygonCount,
-
-                                rectangle = sectorRectangles.Count - 1,
-                                sectorId = sectorpolygon.sectorId
-                            };
-
-                            ListOfSectorLists[output].Add(ContactSector);
-
-                            continue;
-                        }
-
-                        Vector4 rectangleOut = ClipEdgesWithRectangle(rectangleIn, polygon);
-
-                        if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
-                        {
-                            continue;
-                        }
-
-                        if (DegenerateRectangle(rectangleOut))
-                        {
-                            continue;
-                        }
-
-                        if (RectanglesDoNotOverlap(rectangleIn, rectangleOut))
-                        {
-                            continue;
-                        }
-
-                        Vector4 combinedRectangle = IntersectRectangles(rectangleIn, rectangleOut);
-
-                        sectorRectangles.Add(combinedRectangle);
-
-                        SectorMeta VisibleSector = new SectorMeta
-                        {
-                            polygonStartIndex = sectorpolygon.polygonStartIndex,
-                            polygonCount = sectorpolygon.polygonCount,
+                            portalStartIndex = connectedstart,
+                            portalCount = connectedcount,
 
                             rectangle = sectorRectangles.Count - 1,
                             sectorId = sectorpolygon.sectorId
                         };
 
-                        ListOfSectorLists[output].Add(VisibleSector);
+                        ListOfSectorLists[output].Add(ContactSector);
+
+                        continue;
                     }
+
+                    Vector4 rectangleOut = ClipEdgesWithRectangle(rectangleIn, polygon);
+
+                    if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
+                    {
+                        continue;
+                    }
+
+                    if (DegenerateRectangle(rectangleOut))
+                    {
+                        continue;
+                    }
+
+                    if (RectanglesDoNotOverlap(rectangleIn, rectangleOut))
+                    {
+                        continue;
+                    }
+
+                    Vector4 combinedRectangle = IntersectRectangles(rectangleIn, rectangleOut);
+
+                    sectorRectangles.Add(combinedRectangle);
+
+                    SectorMeta VisibleSector = new SectorMeta
+                    {
+                        portalStartIndex = connectedstart,
+                        portalCount = connectedcount,
+
+                        rectangle = sectorRectangles.Count - 1,
+                        sectorId = sectorpolygon.sectorId
+                    };
+
+                    ListOfSectorLists[output].Add(VisibleSector);
                 }
             }
         }
+    }
+
+    public void GetTriangles()
+    {
+        for (int a = 0; a < visibleSectors.Length; a++)
+        {
+            if (visibleSectors[a] == 0)
+            {
+                continue;
+            }
+
+            SectorMeta sector = LevelLists.sectors[a];
+
+            var rectangleList = ListOfRectangleLists[sector.sectorId];
+
+            if (rectangleList.Count == 0)
+            {
+                continue;
+            }
+
+            Vector4 mergedRectangles = rectangleList[0];
+
+            for (int b = 1; b < rectangleList.Count; b++)
+            {
+                mergedRectangles = MergeRectangles(mergedRectangles, rectangleList[b]);
+            }
+
+            debugRectangles.Add(mergedRectangles);
+
+            for (int c = sector.triangleStartIndex; c < sector.triangleStartIndex + sector.triangleCount; c++)
+            {
+                TriangleMeta triangles = LevelLists.triangles[c];
+
+                ClipTrianglesWithRectangle(mergedRectangles, triangles);
+            }
+        }
+    }
+
+    public Vector4 MergeRectangles(Vector4 a, Vector4 b)
+    {
+        return new Vector4(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.z, b.z), Mathf.Max(a.w, b.w));
     }
 
     public bool DegenerateRectangle(Vector4 r)
@@ -1385,11 +1442,19 @@ public class LevelLoader : MonoBehaviour
 
     public void BuildGeometry()
     {
-        int polygonStart = 0;
+        int portalStart = 0;
+
+        int renderStart = 0;
+
+        int planeStart = 0;
 
         for (int i = 0; i < sectors.Count; i++)
         {
-            int polygonCount = 0;
+            int portalCount = 0;
+
+            int renderCount = 0;
+
+            int planeCount = 0;
 
             Sector sector = sectors[i];
 
@@ -1413,19 +1478,19 @@ public class LevelLoader : MonoBehaviour
 
                     int baseVert = LevelLists.vertices.Count;
 
-                    int baseStartIndex = LevelLists.triangles.Count;
+                    int baseStartIndex = LevelLists.indices.Count;
 
                     LevelLists.vertices.Add(new Vector3((float)Z1, (float)V0, (float)X1));
                     LevelLists.vertices.Add(new Vector3((float)Z1, (float)V1, (float)X1));
                     LevelLists.vertices.Add(new Vector3((float)Z0, (float)V1, (float)X0));
                     LevelLists.vertices.Add(new Vector3((float)Z0, (float)V0, (float)X0));
 
-                    LevelLists.triangles.Add(baseVert);
-                    LevelLists.triangles.Add(baseVert + 1);
-                    LevelLists.triangles.Add(baseVert + 2);
-                    LevelLists.triangles.Add(baseVert);
-                    LevelLists.triangles.Add(baseVert + 2);
-                    LevelLists.triangles.Add(baseVert + 3);
+                    LevelLists.indices.Add(baseVert);
+                    LevelLists.indices.Add(baseVert + 1);
+                    LevelLists.indices.Add(baseVert + 2);
+                    LevelLists.indices.Add(baseVert);
+                    LevelLists.indices.Add(baseVert + 2);
+                    LevelLists.indices.Add(baseVert + 3);
 
                     Vector3 v0 = LevelLists.vertices[baseVert];
                     Vector3 v1 = LevelLists.vertices[baseVert + 1];
@@ -1452,28 +1517,18 @@ public class LevelLoader : MonoBehaviour
                     LevelLists.normals.Add(n);
                     LevelLists.normals.Add(n);
 
-                    PolygonMeta transformedmesh = new PolygonMeta
+                    TriangleMeta transformedmesh = new TriangleMeta
                     {
-                        plane = LevelLists.planes.Count,
+                        triangleStartIndex = baseStartIndex,
+
+                        triangleCount = 6,
 
                         collider = i,
 
-                        opaque = i,
-
-                        sectorId = i,
-
-                        connectedSectorId = -1,
-
-                        edgeStartIndex = -1,
-
-                        edgeCount = -1,
-
-                        triangleStartIndex = baseStartIndex,
-
-                        triangleCount = 6
+                        opaque = i
                     };
 
-                    LevelLists.polygons.Add(transformedmesh);
+                    LevelLists.triangles.Add(transformedmesh);
 
                     MathematicalPlane plane = new MathematicalPlane
                     {
@@ -1483,7 +1538,9 @@ public class LevelLoader : MonoBehaviour
 
                     LevelLists.planes.Add(plane);
 
-                    polygonCount += 1;
+                    renderCount += 1;
+
+                    planeCount += 1;
                 }
                 else
                 {
@@ -1504,19 +1561,19 @@ public class LevelLoader : MonoBehaviour
 
                             int baseVert = LevelLists.vertices.Count;
 
-                            int baseStartIndex = LevelLists.triangles.Count;
+                            int baseStartIndex = LevelLists.indices.Count;
 
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)Ceiling, (float)X0));
 
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 1);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert + 3);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 1);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert + 3);
 
                             Vector3 v0 = LevelLists.vertices[baseVert];
                             Vector3 v1 = LevelLists.vertices[baseVert + 1];
@@ -1543,28 +1600,18 @@ public class LevelLoader : MonoBehaviour
                             LevelLists.normals.Add(n);
                             LevelLists.normals.Add(n);
 
-                            PolygonMeta transformedmesh = new PolygonMeta
+                            TriangleMeta transformedmesh = new TriangleMeta
                             {
-                                plane = LevelLists.planes.Count,
-
                                 collider = i,
 
                                 opaque = i,
-
-                                sectorId = i,
-
-                                connectedSectorId = -1,
-
-                                edgeStartIndex = -1,
-
-                                edgeCount = -1,
 
                                 triangleStartIndex = baseStartIndex,
 
                                 triangleCount = 6
                             };
 
-                            LevelLists.polygons.Add(transformedmesh);
+                            LevelLists.triangles.Add(transformedmesh);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1574,7 +1621,9 @@ public class LevelLoader : MonoBehaviour
 
                             LevelLists.planes.Add(plane);
 
-                            polygonCount += 1;
+                            renderCount += 1;
+
+                            planeCount += 1;
                         }
                         else
                         {
@@ -1583,19 +1632,19 @@ public class LevelLoader : MonoBehaviour
 
                             int baseVert = LevelLists.vertices.Count;
 
-                            int baseStartIndex = LevelLists.triangles.Count;
+                            int baseStartIndex = LevelLists.indices.Count;
 
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)C1, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)C1, (float)X0));
 
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 1);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert + 3);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 1);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert + 3);
 
                             Vector3 v0 = LevelLists.vertices[baseVert];
                             Vector3 v1 = LevelLists.vertices[baseVert + 1];
@@ -1622,28 +1671,18 @@ public class LevelLoader : MonoBehaviour
                             LevelLists.normals.Add(n);
                             LevelLists.normals.Add(n);
 
-                            PolygonMeta transformedmesh = new PolygonMeta
+                            TriangleMeta transformedmesh = new TriangleMeta
                             {
-                                plane = LevelLists.planes.Count,
-
                                 collider = i,
 
                                 opaque = i,
-
-                                sectorId = i,
-
-                                connectedSectorId = -1,
-
-                                edgeStartIndex = -1,
-
-                                edgeCount = -1,
 
                                 triangleStartIndex = baseStartIndex,
 
                                 triangleCount = 6
                             };
 
-                            LevelLists.polygons.Add(transformedmesh);
+                            LevelLists.triangles.Add(transformedmesh);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1653,7 +1692,9 @@ public class LevelLoader : MonoBehaviour
 
                             LevelLists.planes.Add(plane);
 
-                            polygonCount += 1;
+                            renderCount += 1;
+
+                            planeCount += 1;
                         }
                     }
                     if (sectors[wall].ceilingHeight != sectors[wall].floorHeight)
@@ -1709,13 +1750,9 @@ public class LevelLoader : MonoBehaviour
                         LevelLists.normals.Add(Vector3.zero);
                         LevelLists.normals.Add(Vector3.zero);
 
-                        PolygonMeta transformedmesh = new PolygonMeta
+                        PortalMeta transformedportal = new PortalMeta
                         {
                             plane = LevelLists.planes.Count,
-
-                            collider = -1,
-
-                            opaque = -1,
 
                             sectorId = i,
 
@@ -1723,14 +1760,10 @@ public class LevelLoader : MonoBehaviour
 
                             edgeStartIndex = baseStartIndex,
 
-                            edgeCount = 8,
-
-                            triangleStartIndex = -1,
-
-                            triangleCount = -1
+                            edgeCount = 8
                         };
 
-                        LevelLists.polygons.Add(transformedmesh);
+                        LevelLists.portals.Add(transformedportal);
 
                         MathematicalPlane plane = new MathematicalPlane
                         {
@@ -1740,7 +1773,9 @@ public class LevelLoader : MonoBehaviour
 
                         LevelLists.planes.Add(plane);
 
-                        polygonCount += 1;
+                        portalCount += 1;
+
+                        planeCount += 1;
                     }
 
                     if (sector.floorHeight < sectors[wall].floorHeight)
@@ -1760,19 +1795,19 @@ public class LevelLoader : MonoBehaviour
 
                             int baseVert = LevelLists.vertices.Count;
 
-                            int baseStartIndex = LevelLists.triangles.Count;
+                            int baseStartIndex = LevelLists.indices.Count;
 
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)Floor, (float)X0));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)F0, (float)X0));
 
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 1);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert + 3);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 1);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert + 3);
 
                             Vector3 v0 = LevelLists.vertices[baseVert];
                             Vector3 v1 = LevelLists.vertices[baseVert + 1];
@@ -1799,28 +1834,18 @@ public class LevelLoader : MonoBehaviour
                             LevelLists.normals.Add(n);
                             LevelLists.normals.Add(n);
 
-                            PolygonMeta transformedmesh = new PolygonMeta
+                            TriangleMeta transformedmesh = new TriangleMeta
                             {
-                                plane = LevelLists.planes.Count,
-
                                 collider = i,
 
                                 opaque = i,
-
-                                sectorId = i,
-
-                                connectedSectorId = -1,
-
-                                edgeStartIndex = -1,
-
-                                edgeCount = -1,
 
                                 triangleStartIndex = baseStartIndex,
 
                                 triangleCount = 6
                             };
 
-                            LevelLists.polygons.Add(transformedmesh);
+                            LevelLists.triangles.Add(transformedmesh);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1830,7 +1855,9 @@ public class LevelLoader : MonoBehaviour
 
                             LevelLists.planes.Add(plane);
 
-                            polygonCount += 1;
+                            renderCount += 1;
+
+                            planeCount += 1;
                         }
                         else
                         {
@@ -1839,19 +1866,19 @@ public class LevelLoader : MonoBehaviour
 
                             int baseVert = LevelLists.vertices.Count;
 
-                            int baseStartIndex = LevelLists.triangles.Count;
+                            int baseStartIndex = LevelLists.indices.Count;
 
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z1, (float)F1, (float)X1));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)F1, (float)X0));
                             LevelLists.vertices.Add(new Vector3((float)Z0, (float)F0, (float)X0));
 
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 1);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert);
-                            LevelLists.triangles.Add(baseVert + 2);
-                            LevelLists.triangles.Add(baseVert + 3);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 1);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert);
+                            LevelLists.indices.Add(baseVert + 2);
+                            LevelLists.indices.Add(baseVert + 3);
 
                             Vector3 v0 = LevelLists.vertices[baseVert];
                             Vector3 v1 = LevelLists.vertices[baseVert + 1];
@@ -1878,28 +1905,18 @@ public class LevelLoader : MonoBehaviour
                             LevelLists.normals.Add(n);
                             LevelLists.normals.Add(n);
 
-                            PolygonMeta transformedmesh = new PolygonMeta
+                            TriangleMeta transformedmesh = new TriangleMeta
                             {
-                                plane = LevelLists.planes.Count,
-
                                 collider = i,
 
                                 opaque = i,
-
-                                sectorId = i,
-
-                                connectedSectorId = -1,
-
-                                edgeStartIndex = -1,
-
-                                edgeCount = -1,
 
                                 triangleStartIndex = baseStartIndex,
 
                                 triangleCount = 6
                             };
 
-                            LevelLists.polygons.Add(transformedmesh);
+                            LevelLists.triangles.Add(transformedmesh);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1909,7 +1926,9 @@ public class LevelLoader : MonoBehaviour
 
                             LevelLists.planes.Add(plane);
 
-                            polygonCount += 1;
+                            renderCount += 1;
+
+                            planeCount += 1;
                         }
                     }
                 }
@@ -2003,7 +2022,7 @@ public class LevelLoader : MonoBehaviour
 
                 int baseFloor = LevelLists.vertices.Count;
 
-                int floorStartIndex = LevelLists.triangles.Count;
+                int floorStartIndex = LevelLists.indices.Count;
 
                 for (int e = 0; e < floorverts.Count; e++)
                 {
@@ -2017,7 +2036,7 @@ public class LevelLoader : MonoBehaviour
 
                 for (int e = 0; e < floortri.Count; e++)
                 {
-                    LevelLists.triangles.Add(baseFloor + floortri[e]);
+                    LevelLists.indices.Add(baseFloor + floortri[e]);
                 }
 
                 Vector3 f0 = floorverts[floortri[0]];
@@ -2031,28 +2050,18 @@ public class LevelLoader : MonoBehaviour
                     LevelLists.normals.Add(f);
                 }
 
-                PolygonMeta transformedfloormesh = new PolygonMeta
+                TriangleMeta transformedfloormesh = new TriangleMeta
                 {
-                    plane = LevelLists.planes.Count,
-
                     collider = i,
 
                     opaque = i,
-
-                    sectorId = i,
-
-                    connectedSectorId = -1,
-
-                    edgeStartIndex = -1,
-
-                    edgeCount = -1,
 
                     triangleStartIndex = floorStartIndex,
 
                     triangleCount = floortri.Count
                 };
 
-                LevelLists.polygons.Add(transformedfloormesh);
+                LevelLists.triangles.Add(transformedfloormesh);
 
                 MathematicalPlane floorPlane = new MathematicalPlane
                 {
@@ -2062,11 +2071,13 @@ public class LevelLoader : MonoBehaviour
 
                 LevelLists.planes.Add(floorPlane);
 
-                polygonCount += 1;
+                renderCount += 1;
+
+                planeCount += 1;
 
                 int baseCeiling = LevelLists.vertices.Count;
 
-                int ceilingStartIndex = LevelLists.triangles.Count;
+                int ceilingStartIndex = LevelLists.indices.Count;
 
                 for (int e = 0; e < ceilingverts.Count; e++)
                 {
@@ -2080,7 +2091,7 @@ public class LevelLoader : MonoBehaviour
 
                 for (int e = 0; e < ceilingtri.Count; e++)
                 {
-                    LevelLists.triangles.Add(baseCeiling + ceilingtri[e]);
+                    LevelLists.indices.Add(baseCeiling + ceilingtri[e]);
                 }
 
                 Vector3 c0 = ceilingverts[ceilingtri[0]];
@@ -2094,28 +2105,18 @@ public class LevelLoader : MonoBehaviour
                     LevelLists.normals.Add(c);
                 }
 
-                PolygonMeta transformedceilingmesh = new PolygonMeta
+                TriangleMeta transformedceilingmesh = new TriangleMeta
                 {
-                    plane = LevelLists.planes.Count,
-
                     collider = i,
 
                     opaque = i,
-
-                    sectorId = i,
-
-                    connectedSectorId = -1,
-
-                    edgeStartIndex = -1,
-
-                    edgeCount = -1,
 
                     triangleStartIndex = ceilingStartIndex,
 
                     triangleCount = ceilingtri.Count
                 };
 
-                LevelLists.polygons.Add(transformedceilingmesh);
+                LevelLists.triangles.Add(transformedceilingmesh);
 
                 MathematicalPlane ceilingPlane = new MathematicalPlane
                 {
@@ -2125,19 +2126,30 @@ public class LevelLoader : MonoBehaviour
 
                 LevelLists.planes.Add(ceilingPlane);
 
-                polygonCount += 1;
+                renderCount += 1;
+
+                planeCount += 1;
             }
 
             SectorMeta sectorMeta = new SectorMeta
             {
                 sectorId = i,
                 rectangle = 0,
-                polygonStartIndex = polygonStart,
-                polygonCount = polygonCount,
+                portalStartIndex = portalStart,
+                portalCount = portalCount,
+                planeStartIndex = planeStart,
+                planeCount = planeCount,
+                triangleStartIndex = renderStart,
+                triangleCount = renderCount
             };
 
             LevelLists.sectors.Add(sectorMeta);
-            polygonStart += polygonCount;
+
+            portalStart += portalCount;
+
+            planeStart += planeCount;
+
+            renderStart += renderCount;
         }
 
         Debug.Log("Level built successfully!");
@@ -2168,15 +2180,15 @@ public class LevelLoader : MonoBehaviour
 
             int triangleCount = 0;
 
-            for (int e = LevelLists.sectors[i].polygonStartIndex; e < LevelLists.sectors[i].polygonStartIndex + LevelLists.sectors[i].polygonCount; e++)
+            for (int e = LevelLists.sectors[i].triangleStartIndex; e < LevelLists.sectors[i].triangleStartIndex + LevelLists.sectors[i].triangleCount; e++)
             {
-                if (LevelLists.polygons[e].collider != -1)
+                if (LevelLists.triangles[e].collider != -1)
                 {
-                    for (int f = LevelLists.polygons[e].triangleStartIndex; f < LevelLists.polygons[e].triangleStartIndex + LevelLists.polygons[e].triangleCount; f += 3)
+                    for (int f = LevelLists.triangles[e].triangleStartIndex; f < LevelLists.triangles[e].triangleStartIndex + LevelLists.triangles[e].triangleCount; f += 3)
                     {
-                        colliderVertices.Add(LevelLists.vertices[LevelLists.triangles[f]]);
-                        colliderVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 1]]);
-                        colliderVertices.Add(LevelLists.vertices[LevelLists.triangles[f + 2]]);
+                        colliderVertices.Add(LevelLists.vertices[LevelLists.indices[f]]);
+                        colliderVertices.Add(LevelLists.vertices[LevelLists.indices[f + 1]]);
+                        colliderVertices.Add(LevelLists.vertices[LevelLists.indices[f + 2]]);
                         colliderTriangles.Add(triangleCount);
                         colliderTriangles.Add(triangleCount + 1);
                         colliderTriangles.Add(triangleCount + 2);
