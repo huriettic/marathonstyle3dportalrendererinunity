@@ -124,7 +124,6 @@ public class LevelLoader : MonoBehaviour
     List<Triangle> outTriangles = new List<Triangle>();
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
-    List<Vector4> sectorRectangles = new List<Vector4>();
     List<Vector4> debugRectangles = new List<Vector4>();
     int[] visibleSectors;
     Texture2D linetexture;
@@ -274,8 +273,6 @@ public class LevelLoader : MonoBehaviour
             GetSectors(CurrentSector);
 
             outTriangles.Clear();
-
-            sectorRectangles.Clear();
 
             debugRectangles.Clear();
 
@@ -1141,7 +1138,9 @@ public class LevelLoader : MonoBehaviour
         ListOfSectorLists[input].Clear();
         ListOfSectorLists[output].Clear();
 
-        sectorRectangles.Add(new Vector4(0f, 0f, Screen.width, Screen.height));
+        ArrayOfRectangleArrays[ASector.sectorId][ASector.rectangle] = new Vector4(0f, 0f, Screen.width, Screen.height);
+
+        visibleSectors[ASector.sectorId] = ASector.rectangle + 1;
 
         ListOfSectorLists[input].Add(ASector);
 
@@ -1169,20 +1168,7 @@ public class LevelLoader : MonoBehaviour
             {
                 SectorMeta sector = ListOfSectorLists[input][b];
 
-                Vector4 rectangleIn = sectorRectangles[sector.rectangle];
-
-                int count = visibleSectors[sector.sectorId];
-
-                if (count < 32)
-                {
-                    ArrayOfRectangleArrays[sector.sectorId][count] = rectangleIn;
-
-                    visibleSectors[sector.sectorId] += 1;
-                }
-                else
-                {
-                    continue;
-                }
+                Vector4 rectangleIn = ArrayOfRectangleArrays[sector.sectorId][sector.rectangle];
 
                 for (int c = sector.portalStartIndex; c < sector.portalStartIndex + sector.portalCount; c++)
                 {
@@ -1199,21 +1185,30 @@ public class LevelLoader : MonoBehaviour
 
                     SectorMeta sectorpolygon = LevelLists.sectors[connectedsector];
 
+                    int nextcount = visibleSectors[connectedsector];
+
                     int connectedstart = sectorpolygon.portalStartIndex;
 
                     int connectedcount = sectorpolygon.portalCount;
 
+                    if (nextcount >= 32)
+                    {
+                        continue;
+                    }
+
                     if (SectorsContains(sectorpolygon.sectorId))
                     {
-                        sectorRectangles.Add(rectangleIn);
+                        ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleIn;
+
+                        visibleSectors[connectedsector] = nextcount + 1;
 
                         SectorMeta ContactSector = new SectorMeta
                         {
                             portalStartIndex = connectedstart,
                             portalCount = connectedcount,
 
-                            rectangle = sectorRectangles.Count - 1,
-                            sectorId = sectorpolygon.sectorId
+                            rectangle = nextcount,
+                            sectorId = connectedsector
                         };
 
                         ListOfSectorLists[output].Add(ContactSector);
@@ -1240,15 +1235,17 @@ public class LevelLoader : MonoBehaviour
 
                     Vector4 combinedRectangle = IntersectRectangles(rectangleIn, rectangleOut);
 
-                    sectorRectangles.Add(combinedRectangle);
+                    ArrayOfRectangleArrays[connectedsector][nextcount] = combinedRectangle;
+
+                    visibleSectors[connectedsector] = nextcount + 1;
 
                     SectorMeta VisibleSector = new SectorMeta
                     {
                         portalStartIndex = connectedstart,
                         portalCount = connectedcount,
 
-                        rectangle = sectorRectangles.Count - 1,
-                        sectorId = sectorpolygon.sectorId
+                        rectangle = nextcount,
+                        sectorId = connectedsector
                     };
 
                     ListOfSectorLists[output].Add(VisibleSector);
