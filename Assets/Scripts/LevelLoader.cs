@@ -103,7 +103,7 @@ public class LevelLoader : MonoBehaviour
     Vector3[] temporarytextures;
     Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
-    List<List<Vector4>> ListOfRectangleLists = new List<List<Vector4>>();
+    public Vector4[][] ArrayOfRectangleArrays;
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -125,8 +125,8 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
     List<Vector4> sectorRectangles = new List<Vector4>();
-    int[] visibleSectors;
     List<Vector4> debugRectangles = new List<Vector4>();
+    int[] visibleSectors;
     Texture2D linetexture;
 
     [Serializable]
@@ -238,6 +238,13 @@ public class LevelLoader : MonoBehaviour
             ListOfSectorLists.Add(new List<SectorMeta>());
         }
 
+        ArrayOfRectangleArrays = new Vector4[LevelLists.sectors.Count][];
+
+        for (int i = 0; i < LevelLists.sectors.Count; i++)
+        {
+            ArrayOfRectangleArrays[i] = new Vector4[32];
+        }
+
         for (int i = 0; i < LevelLists.sectors.Count; i++)
         {
             Physics.IgnoreCollision(Player, CollisionSectors[LevelLists.sectors[i].sectorId], true);
@@ -271,13 +278,6 @@ public class LevelLoader : MonoBehaviour
             sectorRectangles.Clear();
 
             debugRectangles.Clear();
-
-            ListOfRectangleLists.Clear();
-
-            for (int i = 0; i < LevelLists.sectors.Count; i++)
-            {
-                ListOfRectangleLists.Add(new List<Vector4>());
-            }
 
             Array.Clear(visibleSectors, 0, visibleSectors.Length);
 
@@ -1171,9 +1171,18 @@ public class LevelLoader : MonoBehaviour
 
                 Vector4 rectangleIn = sectorRectangles[sector.rectangle];
 
-                ListOfRectangleLists[sector.sectorId].Add(rectangleIn);
+                int count = visibleSectors[sector.sectorId];
 
-                visibleSectors[sector.sectorId] += 1;
+                if (count < 32)
+                {
+                    ArrayOfRectangleArrays[sector.sectorId][count] = rectangleIn;
+
+                    visibleSectors[sector.sectorId] += 1;
+                }
+                else
+                {
+                    continue;
+                }
 
                 for (int c = sector.portalStartIndex; c < sector.portalStartIndex + sector.portalCount; c++)
                 {
@@ -1252,25 +1261,22 @@ public class LevelLoader : MonoBehaviour
     {
         for (int a = 0; a < visibleSectors.Length; a++)
         {
-            if (visibleSectors[a] == 0)
+            int count = visibleSectors[a];
+
+            if (count == 0)
             {
                 continue;
             }
 
             SectorMeta sector = LevelLists.sectors[a];
 
-            var rectangleList = ListOfRectangleLists[sector.sectorId];
+            var rectangleArray = ArrayOfRectangleArrays[sector.sectorId];
 
-            if (rectangleList.Count == 0)
+            Vector4 mergedRectangles = rectangleArray[0];
+
+            for (int b = 1; b < count; b++)
             {
-                continue;
-            }
-
-            Vector4 mergedRectangles = rectangleList[0];
-
-            for (int b = 1; b < rectangleList.Count; b++)
-            {
-                mergedRectangles = MergeRectangles(mergedRectangles, rectangleList[b]);
+                mergedRectangles = MergeRectangles(mergedRectangles, rectangleArray[b]);
             }
 
             debugRectangles.Add(mergedRectangles);
