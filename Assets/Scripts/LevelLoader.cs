@@ -251,7 +251,7 @@ public class LevelLoader : MonoBehaviour
 
         int strideTriangle = System.Runtime.InteropServices.Marshal.SizeOf(typeof(Triangle));
 
-        triBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, (LevelLists.sectors.Count * 32) * 128, strideTriangle);
+        triBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, LevelLists.indices.Count, strideTriangle);
 
         opaquematerial.SetBuffer("outputTriangleBuffer", triBuffer);
     }
