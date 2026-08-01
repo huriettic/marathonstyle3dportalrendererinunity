@@ -988,6 +988,11 @@ public class LevelLoader : MonoBehaviour
                         mergedCount += 1;
                     }
 
+                    if (mergedCount == 0)
+                    {
+                        continue;
+                    }
+
                     Vector4 mergedRectangles = RectanglesArray[0];
 
                     for (int g = 1; g < mergedCount; g++)
