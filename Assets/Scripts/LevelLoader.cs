@@ -8,7 +8,8 @@ public struct Triangle
     public Vector4 v0, v1, v2;
     public Vector3 uv0, uv1, uv2;
     public Vector3 n0, n1, n2;
-    public Vector4 rect;
+    public int rectStartIndex;
+    public int rectCount;
 };
 
 [Serializable]
@@ -104,7 +105,6 @@ public class LevelLoader : MonoBehaviour
     Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
     Vector4[][] ArrayOfRectangleArrays;
-    Vector4[] RectanglesArray;
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -126,8 +126,10 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> colliderVertices = new List<Vector3>();
     List<int> colliderTriangles = new List<int>();
     List<Vector4> debugRectangles = new List<Vector4>();
+    Vector4[] triangleRectangles;
     int[] visibleSectors;
     Texture2D linetexture;
+    int rectWriteIndex;
 
     [Serializable]
     public class Sector
@@ -195,6 +197,8 @@ public class LevelLoader : MonoBehaviour
     {
         triBuffer.SetData(outTriangles);
 
+        opaquematerial.SetVectorArray("rectangles", triangleRectangles);
+
         opaquematerial.SetPass(0);
         Graphics.DrawProceduralNow(MeshTopology.Triangles, outTriangles.Count * 3);
     }
@@ -233,7 +237,7 @@ public class LevelLoader : MonoBehaviour
 
         temporarynormals = new Vector3[256];
 
-        RectanglesArray = new Vector4[32];
+        triangleRectangles = new Vector4[512];
 
         for (int i = 0; i < 2; i++)
         {
@@ -254,7 +258,7 @@ public class LevelLoader : MonoBehaviour
 
         int strideTriangle = System.Runtime.InteropServices.Marshal.SizeOf(typeof(Triangle));
 
-        triBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, LevelLists.indices.Count, strideTriangle);
+        triBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 512, strideTriangle);
 
         opaquematerial.SetBuffer("outputTriangleBuffer", triBuffer);
     }
@@ -278,6 +282,8 @@ public class LevelLoader : MonoBehaviour
             outTriangles.Clear();
 
             debugRectangles.Clear();
+
+            rectWriteIndex = 0;
 
             Array.Clear(visibleSectors, 0, visibleSectors.Length);
 
@@ -967,7 +973,9 @@ public class LevelLoader : MonoBehaviour
                         ymax = screen2.y;
                     }
 
-                    int mergedCount = 0;
+                    int combinedCount = 0;
+
+                    int combinedStart = rectWriteIndex;
 
                     for (int f = 0; f < rectangleCount; f++)
                     {
@@ -983,21 +991,16 @@ public class LevelLoader : MonoBehaviour
                             continue;
                         }
 
-                        RectanglesArray[mergedCount] = new Vector4(combinedxmin, combinedymin, combinedxmax, combinedymax);
+                        triangleRectangles[rectWriteIndex] = new Vector4(combinedxmin, combinedymin, combinedxmax, combinedymax);
 
-                        mergedCount += 1;
+                        rectWriteIndex += 1;
+
+                        combinedCount += 1;
                     }
 
-                    if (mergedCount == 0)
+                    if (combinedCount == 0)
                     {
                         continue;
-                    }
-
-                    Vector4 mergedRectangles = RectanglesArray[0];
-
-                    for (int g = 1; g < mergedCount; g++)
-                    {
-                        mergedRectangles = MergeRectangles(mergedRectangles, RectanglesArray[g]);
                     }
 
                     Triangle tri = new Triangle();
@@ -1011,8 +1014,8 @@ public class LevelLoader : MonoBehaviour
                     tri.n0 = processnormals[e];
                     tri.n1 = processnormals[e + 1];
                     tri.n2 = processnormals[e + 2];
-
-                    tri.rect = new Vector4(mergedRectangles.x, mergedRectangles.y, mergedRectangles.z, mergedRectangles.w);
+                    tri.rectStartIndex = combinedStart;
+                    tri.rectCount = combinedCount;
 
                     outTriangles.Add(tri);
                 }
@@ -1305,11 +1308,6 @@ public class LevelLoader : MonoBehaviour
                 ClipTrianglesWithRectangles(count, rectangleArray, triangles);
             }
         }
-    }
-
-    public Vector4 MergeRectangles(Vector4 a, Vector4 b)
-    {
-        return new Vector4(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.z, b.z), Mathf.Max(a.w, b.w));
     }
 
     public bool DegenerateRectangle(Vector4 r)

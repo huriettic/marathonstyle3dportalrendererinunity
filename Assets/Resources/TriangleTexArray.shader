@@ -17,13 +17,15 @@ Shader "Custom/TriangleTexArray"
             #include "UnityCG.cginc"
 
             UNITY_DECLARE_TEX2DARRAY(_MainTex);
+            float4 rectangles[512];
 
             struct Triangle
             {
                 float4 v0, v1, v2;
                 float3 uv0, uv1, uv2;
                 float3 n0, n1, n2;
-                float4 rect;
+                uint rectStartIndex;
+                uint rectCount;
             };
 
             StructuredBuffer<Triangle> outputTriangleBuffer;
@@ -33,8 +35,9 @@ Shader "Custom/TriangleTexArray"
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float index : TEXCOORD1;
-                float4 aabb : TEXCOORD2;
-                float4 clip : TEXCOORD3;
+                float4 clip : TEXCOORD2;
+                uint start : TEXCOORD3;
+                uint count : TEXCOORD4;
             };
 
             v2f vert(uint id : SV_VertexID)
@@ -67,8 +70,9 @@ Shader "Custom/TriangleTexArray"
                 o.pos = clipTriangle;
                 o.uv = uvTriangle.xy;
                 o.index = uvTriangle.z;
-                o.aabb = tri.rect;
                 o.clip = clipTriangle;
+                o.start = tri.rectStartIndex;
+                o.count = tri.rectCount;
                 return o;
             }
 
@@ -81,13 +85,29 @@ Shader "Custom/TriangleTexArray"
                 screen.x = (ndc.x * 0.5 + 0.5) * _ScreenParams.x;
                 screen.y = (ndc.y * 0.5 + 0.5) * _ScreenParams.y;
 
-                float epsilon = 0.5f;
-                float xmin = i.aabb.x - epsilon;
-                float ymin = i.aabb.y - epsilon;
-                float xmax = i.aabb.z + epsilon;
-                float ymax = i.aabb.w + epsilon;
+                float epsilon = 0.5;
 
-                if (screen.x < xmin || screen.x > xmax || screen.y < ymin || screen.y > ymax)
+                bool insideAny = false;
+
+                for (uint a = 0; a < i.count; a++)
+                {
+                    float4 rect = rectangles[i.start + a];
+
+                    float xmin = rect.x - epsilon;
+                    float ymin = rect.y - epsilon;
+                    float xmax = rect.z + epsilon;
+                    float ymax = rect.w + epsilon;
+
+                    bool inside = screen.x >= xmin && screen.x <= xmax && screen.y >= ymin && screen.y <= ymax;
+
+                    if (inside)
+                    {
+                        insideAny = true;
+                        break;
+                    }
+                }
+
+                if (!insideAny)
                 {
                     discard;
                 }
