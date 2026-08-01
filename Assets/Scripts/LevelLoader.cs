@@ -103,7 +103,8 @@ public class LevelLoader : MonoBehaviour
     Vector3[] temporarytextures;
     Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
-    public Vector4[][] ArrayOfRectangleArrays;
+    Vector4[][] ArrayOfRectangleArrays;
+    Vector4[] RectanglesArray;
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -231,6 +232,8 @@ public class LevelLoader : MonoBehaviour
         temporarytextures = new Vector3[256];
 
         temporarynormals = new Vector3[256];
+
+        RectanglesArray = new Vector4[32];
 
         for (int i = 0; i < 2; i++)
         {
@@ -583,7 +586,7 @@ public class LevelLoader : MonoBehaviour
         return new Vector4(xmin, ymin, xmax, ymax);
     }
 
-    public void ClipTrianglesWithRectangle(Vector4 rectangle, TriangleMeta polygon)
+    public void ClipTrianglesWithRectangles(int rectangleCount, Vector4[] rectangles, TriangleMeta polygon)
     {
         for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
         {
@@ -964,14 +967,32 @@ public class LevelLoader : MonoBehaviour
                         ymax = screen2.y;
                     }
 
-                    float combinedxmin = Mathf.Max(rectangle.x, xmin);
-                    float combinedymin = Mathf.Max(rectangle.y, ymin);
-                    float combinedxmax = Mathf.Min(rectangle.z, xmax);
-                    float combinedymax = Mathf.Min(rectangle.w, ymax);
+                    int mergedCount = 0;
 
-                    if (combinedxmin >= combinedxmax || combinedymin >= combinedymax)
+                    for (int f = 0; f < rectangleCount; f++)
                     {
-                        continue;
+                        Vector4 rectangle = rectangles[f];
+
+                        float combinedxmin = Mathf.Max(rectangle.x, xmin);
+                        float combinedymin = Mathf.Max(rectangle.y, ymin);
+                        float combinedxmax = Mathf.Min(rectangle.z, xmax);
+                        float combinedymax = Mathf.Min(rectangle.w, ymax);
+
+                        if (combinedxmin >= combinedxmax || combinedymin >= combinedymax)
+                        {
+                            continue;
+                        }
+
+                        RectanglesArray[mergedCount] = new Vector4(combinedxmin, combinedymin, combinedxmax, combinedymax);
+
+                        mergedCount += 1;
+                    }
+
+                    Vector4 mergedRectangles = RectanglesArray[0];
+
+                    for (int g = 1; g < mergedCount; g++)
+                    {
+                        mergedRectangles = MergeRectangles(mergedRectangles, RectanglesArray[g]);
                     }
 
                     Triangle tri = new Triangle();
@@ -985,7 +1006,8 @@ public class LevelLoader : MonoBehaviour
                     tri.n0 = processnormals[e];
                     tri.n1 = processnormals[e + 1];
                     tri.n2 = processnormals[e + 2];
-                    tri.rect = new Vector4(combinedxmin, combinedymin, combinedxmax, combinedymax);
+
+                    tri.rect = new Vector4(mergedRectangles.x, mergedRectangles.y, mergedRectangles.z, mergedRectangles.w);
 
                     outTriangles.Add(tri);
                 }
@@ -1170,6 +1192,8 @@ public class LevelLoader : MonoBehaviour
 
                 Vector4 rectangleIn = ArrayOfRectangleArrays[sector.sectorId][sector.rectangle];
 
+                debugRectangles.Add(rectangleIn);
+
                 for (int c = sector.portalStartIndex; c < sector.portalStartIndex + sector.portalCount; c++)
                 {
                     PortalMeta polygon = LevelLists.portals[c];
@@ -1269,20 +1293,11 @@ public class LevelLoader : MonoBehaviour
 
             var rectangleArray = ArrayOfRectangleArrays[sector.sectorId];
 
-            Vector4 mergedRectangles = rectangleArray[0];
-
-            for (int b = 1; b < count; b++)
-            {
-                mergedRectangles = MergeRectangles(mergedRectangles, rectangleArray[b]);
-            }
-
-            debugRectangles.Add(mergedRectangles);
-
             for (int c = sector.triangleStartIndex; c < sector.triangleStartIndex + sector.triangleCount; c++)
             {
                 TriangleMeta triangles = LevelLists.triangles[c];
 
-                ClipTrianglesWithRectangle(mergedRectangles, triangles);
+                ClipTrianglesWithRectangles(count, rectangleArray, triangles);
             }
         }
     }
