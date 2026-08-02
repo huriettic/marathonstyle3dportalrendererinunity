@@ -46,6 +46,7 @@ public struct PortalMeta
     public int sectorId;
 
     public int plane;
+    public int portalId;
 };
 
 [Serializable]
@@ -105,6 +106,8 @@ public class LevelLoader : MonoBehaviour
     Vector3[] temporarynormals;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
     Vector4[][] ArrayOfRectangleArrays;
+    int[][] ArrayOfPortalIdArrays;
+    Vector4[] merged;
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -130,6 +133,7 @@ public class LevelLoader : MonoBehaviour
     int[] visibleSectors;
     Texture2D linetexture;
     int rectWriteIndex;
+    int rootPortalId;
 
     [Serializable]
     public class Sector
@@ -239,6 +243,10 @@ public class LevelLoader : MonoBehaviour
 
         triangleRectangles = new Vector4[512];
 
+        merged = new Vector4[32];
+
+        rootPortalId = LevelLists.portals.Count;
+
         for (int i = 0; i < 2; i++)
         {
             ListOfSectorLists.Add(new List<SectorMeta>());
@@ -249,6 +257,13 @@ public class LevelLoader : MonoBehaviour
         for (int i = 0; i < LevelLists.sectors.Count; i++)
         {
             ArrayOfRectangleArrays[i] = new Vector4[32];
+        }
+
+        ArrayOfPortalIdArrays = new int[LevelLists.sectors.Count][];
+
+        for (int i = 0; i < LevelLists.sectors.Count; i++)
+        {
+            ArrayOfPortalIdArrays[i] = new int[32];
         }
 
         for (int i = 0; i < LevelLists.sectors.Count; i++)
@@ -1170,6 +1185,8 @@ public class LevelLoader : MonoBehaviour
 
         ArrayOfRectangleArrays[ASector.sectorId][ASector.rectangle] = new Vector4(0f, 0f, Screen.width, Screen.height);
 
+        ArrayOfPortalIdArrays[ASector.sectorId][0] = rootPortalId;
+
         visibleSectors[ASector.sectorId] = ASector.rectangle + 1;
 
         ListOfSectorLists[input].Add(ASector);
@@ -1232,6 +1249,8 @@ public class LevelLoader : MonoBehaviour
                     {
                         ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleIn;
 
+                        ArrayOfPortalIdArrays[connectedsector][nextcount] = polygon.portalId;
+
                         visibleSectors[connectedsector] = nextcount + 1;
 
                         SectorMeta ContactSector = new SectorMeta
@@ -1269,6 +1288,8 @@ public class LevelLoader : MonoBehaviour
 
                     ArrayOfRectangleArrays[connectedsector][nextcount] = combinedRectangle;
 
+                    ArrayOfPortalIdArrays[connectedsector][nextcount] = polygon.portalId;
+
                     visibleSectors[connectedsector] = nextcount + 1;
 
                     SectorMeta VisibleSector = new SectorMeta
@@ -1299,15 +1320,50 @@ public class LevelLoader : MonoBehaviour
 
             SectorMeta sector = LevelLists.sectors[a];
 
-            var rectangleArray = ArrayOfRectangleArrays[sector.sectorId];
+            Vector4[] rectanglesArray = ArrayOfRectangleArrays[sector.sectorId];
 
-            for (int c = sector.triangleStartIndex; c < sector.triangleStartIndex + sector.triangleCount; c++)
+            int[] portalsId = ArrayOfPortalIdArrays[sector.sectorId];
+
+            int mergeCount = 0;
+
+            for (int b = 0; b < count; b++)
             {
-                TriangleMeta triangles = LevelLists.triangles[c];
+                int portalId = portalsId[b];
 
-                ClipTrianglesWithRectangles(count, rectangleArray, triangles);
+                if (portalId == -1)
+                {
+                    continue;
+                }
+
+                Vector4 mergedRectangles = rectanglesArray[b];
+
+                for (int c = b + 1; c < count; c++)
+                {
+                    if (portalsId[c] == portalId)
+                    {
+                        mergedRectangles = MergeRectangles(mergedRectangles, rectanglesArray[c]);
+
+                        portalsId[c] = -1;
+                    }
+                }
+
+                merged[mergeCount] = mergedRectangles;
+
+                mergeCount += 1;
+            }
+
+            for (int d = sector.triangleStartIndex; d < sector.triangleStartIndex + sector.triangleCount; d++)
+            {
+                TriangleMeta triangles = LevelLists.triangles[d];
+
+                ClipTrianglesWithRectangles(mergeCount, merged, triangles);
             }
         }
+    }
+
+    public Vector4 MergeRectangles(Vector4 a, Vector4 b)
+    {
+        return new Vector4(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.z, b.z), Mathf.Max(a.w, b.w));
     }
 
     public bool DegenerateRectangle(Vector4 r)
@@ -1468,6 +1524,8 @@ public class LevelLoader : MonoBehaviour
         int renderStart = 0;
 
         int planeStart = 0;
+
+        int portalNumber = 0;
 
         for (int i = 0; i < sectors.Count; i++)
         {
@@ -1781,7 +1839,9 @@ public class LevelLoader : MonoBehaviour
 
                             edgeStartIndex = baseStartIndex,
 
-                            edgeCount = 8
+                            edgeCount = 8,
+
+                            portalId = portalNumber
                         };
 
                         LevelLists.portals.Add(transformedportal);
@@ -1797,6 +1857,8 @@ public class LevelLoader : MonoBehaviour
                         portalCount += 1;
 
                         planeCount += 1;
+
+                        portalNumber += 1;
                     }
 
                     if (sector.floorHeight < sectors[wall].floorHeight)
