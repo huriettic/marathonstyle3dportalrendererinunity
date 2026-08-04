@@ -26,28 +26,27 @@ Shader "Custom/TexArray"
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float index : TEXCOORD1;
-                float4 world : TEXCOORD2;
+                float4 clip : TEXCOORD2;
             };
 
             UNITY_DECLARE_TEX2DARRAY(_MainTex);
             float4 rectangles[32];
-            uint count;
+            int count;
 
             v2f vert(appdata v)
             {
                 v2f o;
-                o.pos = mul(UNITY_MATRIX_VP, float4(v.vertex.xyz, 1.0f));
+                float4 clipVertex = mul(UNITY_MATRIX_VP, float4(v.vertex.xyz, 1.0));
+                o.pos = clipVertex;
                 o.uv = v.uv.xy;
                 o.index = v.uv.z;
-                o.world = v.vertex;
+                o.clip = clipVertex;
                 return o;
             }
 
             fixed4 frag(v2f i) : SV_Target
-            {  
-                float4 clip = mul(UNITY_MATRIX_VP, float4(i.world.xyz, 1.0));
-
-                float3 ndc = clip.xyz / clip.w;
+            {
+                float3 ndc = i.clip.xyz / i.clip.w;
 
                 float2 screen;
 
