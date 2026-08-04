@@ -3,16 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [Serializable]
-public struct Triangle
-{
-    public Vector4 v0, v1, v2;
-    public Vector3 uv0, uv1, uv2;
-    public Vector3 n0, n1, n2;
-    public int rectStartIndex;
-    public int rectCount;
-};
-
-[Serializable]
 public struct MathematicalPlane
 {
     public Vector3 normal;
@@ -24,16 +14,6 @@ public struct StartPosition
 {
     public Vector3 playerStart;
     public int sectorId;
-};
-
-[Serializable]
-public struct TriangleMeta
-{
-    public int triangleStartIndex;
-    public int triangleCount;
-
-    public int collider;
-    public int opaque;
 };
 
 [Serializable]
@@ -54,9 +34,6 @@ public struct SectorMeta
 {
     public int portalStartIndex;
     public int portalCount;
-
-    public int triangleStartIndex;
-    public int triangleCount;
 
     public int planeStartIndex;
     public int planeCount;
@@ -89,31 +66,23 @@ public class LevelLoader : MonoBehaviour
     List<Vector2> vertices = new List<Vector2>();
     List<Sector> sectors = new List<Sector>();
     List<StartSector> starts = new List<StartSector>();
-    List<Vector3> ceilingverts = new List<Vector3>();
-    List<int> ceilingtri = new List<int>();
-    List<Vector3> floorverts = new List<Vector3>();
-    List<int> floortri = new List<int>();
+    List<Vector3> ceilingVertices = new List<Vector3>();
+    List<int> ceilingTriangles = new List<int>();
+    List<Vector3> floorVertices = new List<Vector3>();
+    List<int> floorTriangles = new List<int>();
     Material opaquematerial;
-    List<MeshCollider> CollisionSectors = new List<MeshCollider>();
-    List<Mesh> CollisionMesh = new List<Mesh>();
     GameObject CollisionObjects;
-    bool[] processbool;
-    Vector4[] processvertices;
-    Vector3[] processtextures;
-    Vector3[] processnormals;
-    Vector4[] temporaryvertices;
-    Vector3[] temporarytextures;
-    Vector3[] temporarynormals;
+    bool[] boolEdges;
+    Vector4[] processEdges;
+    Vector4[] temporaryEdges;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
     Vector4[][] ArrayOfRectangleArrays;
-    int[][] ArrayOfPortalIdArrays;
-    Vector4[] merged;
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
     List<SectorMeta> Sectors = new List<SectorMeta>();
     List<SectorMeta> OldSectors = new List<SectorMeta>();
-    List<Vector2> OutEdgeVertices = new List<Vector2>();
+    List<Vector3> OutEdgeVertices = new List<Vector3>();
     bool radius;
     bool check;
     float planeDistance;
@@ -121,19 +90,18 @@ public class LevelLoader : MonoBehaviour
     double Floor;
     MathematicalPlane LeftPlane;
     MathematicalPlane TopPlane;
-    List<Vector3> flooruvs = new List<Vector3>();
-    List<Vector3> ceilinguvs = new List<Vector3>();
+    List<Vector3> floorTextures = new List<Vector3>();
+    List<Vector3> ceilingTextures = new List<Vector3>();
     Matrix4x4 viewProjection;
-    GraphicsBuffer triBuffer;
-    List<Triangle> outTriangles = new List<Triangle>();
-    List<Vector3> colliderVertices = new List<Vector3>();
-    List<int> colliderTriangles = new List<int>();
+    Matrix4x4 matrixIdentity;
     List<Vector4> debugRectangles = new List<Vector4>();
-    Vector4[] triangleRectangles;
     int[] visibleSectors;
     Texture2D linetexture;
-    int rectWriteIndex;
-    int rootPortalId;
+    List<Vector3> temporaryVertices = new List<Vector3>();
+    List<Vector3> temporaryNormals = new List<Vector3>();
+    List<Vector3> temporaryTextures = new List<Vector3>();
+    List<int> temporaryTriangles = new List<int>();
+    RenderParams rp;
 
     [Serializable]
     public class Sector
@@ -141,7 +109,7 @@ public class LevelLoader : MonoBehaviour
         public float floorHeight;
         public float ceilingHeight;
         public List<int> vertexIndices = new List<int>();
-        public List<int> wallTypes = new List<int>(); // -1 for solid, sector index for portal
+        public List<int> wallTypes = new List<int>(); // -1 for solid, sector temporaryTriangles for portal
     }
 
     [Serializable]
@@ -156,13 +124,11 @@ public class LevelLoader : MonoBehaviour
     public class TopLevelLists
     {
         public List<Vector3> vertices = new List<Vector3>();
-        public List<Vector3> textures = new List<Vector3>();
-        public List<Vector3> normals = new List<Vector3>();
-        public List<int> indices = new List<int>();
         public List<int> edges = new List<int>();
         public List<MathematicalPlane> planes = new List<MathematicalPlane>();
         public List<PortalMeta> portals = new List<PortalMeta>();
-        public List<TriangleMeta> triangles = new List<TriangleMeta>();
+        public List<Mesh> render = new List<Mesh>();
+        public List<MeshCollider> collision = new List<MeshCollider>();
         public List<SectorMeta> sectors = new List<SectorMeta>();
         public List<StartPosition> positions = new List<StartPosition>();
     }
@@ -180,10 +146,10 @@ public class LevelLoader : MonoBehaviour
         {
             Vector4 rectangle = debugRectangles[i];
 
-            float xmin = rectangle.x;
-            float ymin = rectangle.y;
-            float xmax = rectangle.z;
-            float ymax = rectangle.w;
+            float xmin = (rectangle.x * 0.5f + 0.5f) * Screen.width;
+            float ymin = (rectangle.y * 0.5f + 0.5f) * Screen.height;
+            float xmax = (rectangle.z * 0.5f + 0.5f) * Screen.width;
+            float ymax = (rectangle.w * 0.5f + 0.5f) * Screen.height;
 
             MakeLeftLine(xmin, ymin, xmin, ymax, 5.0f); // left
             MakeRightLine(xmax, ymin, xmax, ymax, 5.0f); // right
@@ -192,26 +158,17 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    void OnDestroy()
-    {
-        triBuffer?.Dispose();
-    }
-
-    void OnRenderObject()
-    {
-        triBuffer.SetData(outTriangles);
-
-        opaquematerial.SetVectorArray("rectangles", triangleRectangles);
-
-        opaquematerial.SetPass(0);
-        Graphics.DrawProceduralNow(MeshTopology.Triangles, outTriangles.Count * 3);
-    }
-
     void Start()
     {
+        rp = new RenderParams();
+
+        rp.matProps = new MaterialPropertyBlock();
+
         CollisionObjects = new GameObject("Collision Meshes");
 
         LevelLists = new TopLevelLists();
+
+        matrixIdentity = Matrix4x4.identity;
 
         LoadFromFile();
 
@@ -221,36 +178,15 @@ public class LevelLoader : MonoBehaviour
 
         BuildObjects();
 
-        BuildColliders();
-
         PlayerStart();
 
         visibleSectors = new int[LevelLists.sectors.Count];
 
-        processbool = new bool[256];
+        boolEdges = new bool[128];
 
-        processvertices = new Vector4[256];
+        processEdges = new Vector4[128];
 
-        processtextures = new Vector3[256];
-
-        processnormals = new Vector3[256];
-
-        temporaryvertices = new Vector4[256];
-
-        temporarytextures = new Vector3[256];
-
-        temporarynormals = new Vector3[256];
-
-        triangleRectangles = new Vector4[512];
-
-        merged = new Vector4[32];
-
-        rootPortalId = LevelLists.portals.Count;
-
-        for (int i = 0; i < 2; i++)
-        {
-            ListOfSectorLists.Add(new List<SectorMeta>());
-        }
+        temporaryEdges = new Vector4[128];
 
         ArrayOfRectangleArrays = new Vector4[LevelLists.sectors.Count][];
 
@@ -259,23 +195,15 @@ public class LevelLoader : MonoBehaviour
             ArrayOfRectangleArrays[i] = new Vector4[32];
         }
 
-        ArrayOfPortalIdArrays = new int[LevelLists.sectors.Count][];
-
-        for (int i = 0; i < LevelLists.sectors.Count; i++)
+        for (int i = 0; i < 2; i++)
         {
-            ArrayOfPortalIdArrays[i] = new int[32];
+            ListOfSectorLists.Add(new List<SectorMeta>());
         }
 
         for (int i = 0; i < LevelLists.sectors.Count; i++)
         {
-            Physics.IgnoreCollision(Player, CollisionSectors[LevelLists.sectors[i].sectorId], true);
+            Physics.IgnoreCollision(Player, LevelLists.collision[LevelLists.sectors[i].sectorId], true);
         }
-
-        int strideTriangle = System.Runtime.InteropServices.Marshal.SizeOf(typeof(Triangle));
-
-        triBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 512, strideTriangle);
-
-        opaquematerial.SetBuffer("outputTriangleBuffer", triBuffer);
     }
 
     void Update()
@@ -294,20 +222,16 @@ public class LevelLoader : MonoBehaviour
 
             GetSectors(CurrentSector);
 
-            outTriangles.Clear();
-
             debugRectangles.Clear();
-
-            rectWriteIndex = 0;
 
             Array.Clear(visibleSectors, 0, visibleSectors.Length);
 
             GetPolygons(CurrentSector);
 
-            GetTriangles();
-
             Cam.transform.hasChanged = false;
         }
+
+        GetTriangles();
     }
 
     void Awake()
@@ -340,11 +264,11 @@ public class LevelLoader : MonoBehaviour
         return viewProj * new Vector4(vertex.x, vertex.y, vertex.z, 1.0f);
     }
 
-    public Vector2 ConvertClipToScreen(Vector4 vertex)
+    public Vector3 ConvertClipToNDC(Vector4 vertex)
     {
         float invw = 1.0f / vertex.w;
 
-        return new Vector2((vertex.x * invw * 0.5f + 0.5f) * Screen.width, (vertex.y * invw * 0.5f + 0.5f) * Screen.height);
+        return new Vector3(vertex.x * invw, vertex.y * invw, vertex.z * invw);
     }
 
     public void MakeLeftLine(float x1, float y1, float x2, float y2, float linethickness)
@@ -369,7 +293,7 @@ public class LevelLoader : MonoBehaviour
 
     public void CreateMaterial()
     {
-        Shader shader = Resources.Load<Shader>("TriangleTexArray");
+        Shader shader = Resources.Load<Shader>("TexArray");
 
         opaquematerial = new Material(shader);
 
@@ -417,7 +341,7 @@ public class LevelLoader : MonoBehaviour
         return Vector3.Dot(plane.normal, point) + plane.distance;
     }
 
-    public Vector4 ClipEdgesWithRectangle(Vector4 rectangle, PortalMeta portal)
+    public Vector4 MakeRectangleWithEdges(Vector4 rectangle, PortalMeta portal)
     {
         OutEdgeVertices.Clear();
 
@@ -429,11 +353,11 @@ public class LevelLoader : MonoBehaviour
             Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.edges[a]]);
             Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.edges[a + 1]]);
 
-            processvertices[processverticescount] = v0clip;
-            processvertices[processverticescount + 1] = v1clip;
+            processEdges[processverticescount] = v0clip;
+            processEdges[processverticescount + 1] = v1clip;
             processverticescount += 2;
-            processbool[processboolcount] = true;
-            processbool[processboolcount + 1] = true;
+            boolEdges[processboolcount] = true;
+            boolEdges[processboolcount + 1] = true;
             processboolcount += 2;
         }
 
@@ -448,36 +372,41 @@ public class LevelLoader : MonoBehaviour
 
             for (int c = 0; c < processverticescount; c += 2)
             {
-                if (processbool[c] == false && processbool[c + 1] == false)
+                if (boolEdges[c] == false && boolEdges[c + 1] == false)
                 {
                     continue;
                 }
 
-                Vector4 v0 = processvertices[c];
-                Vector4 v1 = processvertices[c + 1];
+                Vector4 v0 = processEdges[c];
+                Vector4 v1 = processEdges[c + 1];
+
+                float minX = rectangle.x;
+                float minY = rectangle.y;
+                float maxX = rectangle.z;
+                float maxY = rectangle.w;
 
                 float d0, d1;
 
                 switch (b)
                 {
                     case 0: // Left
-                        d0 = v0.x + v0.w;
-                        d1 = v1.x + v1.w;
+                        d0 = v0.x - minX * v0.w;
+                        d1 = v1.x - minX * v1.w;
                         break;
 
                     case 1: // Right
-                        d0 = v0.w - v0.x;
-                        d1 = v1.w - v1.x;
+                        d0 = maxX * v0.w - v0.x;
+                        d1 = maxX * v1.w - v1.x;
                         break;
 
                     case 2: // Bottom
-                        d0 = v0.y + v0.w;
-                        d1 = v1.y + v1.w;
+                        d0 = v0.y - minY * v0.w;
+                        d1 = v1.y - minY * v1.w;
                         break;
 
                     case 3: // Top
-                        d0 = v0.w - v0.y;
-                        d1 = v1.w - v1.y;
+                        d0 = maxY * v0.w - v0.y;
+                        d1 = maxY * v1.w - v1.y;
                         break;
 
                     case 4: // Near
@@ -525,19 +454,19 @@ public class LevelLoader : MonoBehaviour
                         intersectionPoint1 = intersectionPoint;
                     }
 
-                    temporaryvertices[temporaryverticescount] = point0;
-                    temporaryvertices[temporaryverticescount + 1] = point1;
+                    temporaryEdges[temporaryverticescount] = point0;
+                    temporaryEdges[temporaryverticescount + 1] = point1;
                     temporaryverticescount += 2;
 
-                    processbool[c] = false;
-                    processbool[c + 1] = false;
+                    boolEdges[c] = false;
+                    boolEdges[c + 1] = false;
 
                     intersection += 1;
                 }
                 else
                 {
-                    processbool[c] = false;
-                    processbool[c + 1] = false;
+                    boolEdges[c] = false;
+                    boolEdges[c + 1] = false;
                 }
             }
 
@@ -545,36 +474,41 @@ public class LevelLoader : MonoBehaviour
             {
                 for (int d = 0; d < temporaryverticescount; d += 2)
                 {
-                    processvertices[processverticescount] = temporaryvertices[d];
-                    processvertices[processverticescount + 1] = temporaryvertices[d + 1];
+                    processEdges[processverticescount] = temporaryEdges[d];
+                    processEdges[processverticescount + 1] = temporaryEdges[d + 1];
                     processverticescount += 2;
-                    processbool[processboolcount] = true;
-                    processbool[processboolcount + 1] = true;
+                    boolEdges[processboolcount] = true;
+                    boolEdges[processboolcount + 1] = true;
                     processboolcount += 2;
                 }
 
-                processvertices[processverticescount] = intersectionPoint0;
-                processvertices[processverticescount + 1] = intersectionPoint1;
+                processEdges[processverticescount] = intersectionPoint0;
+                processEdges[processverticescount + 1] = intersectionPoint1;
                 processverticescount += 2;
-                processbool[processboolcount] = true;
-                processbool[processboolcount + 1] = true;
+                boolEdges[processboolcount] = true;
+                boolEdges[processboolcount + 1] = true;
                 processboolcount += 2;
             }
         }
 
         for (int e = 0; e < processboolcount; e += 2)
         {
-            if (processbool[e] == true && processbool[e + 1] == true)
+            if (boolEdges[e] == true && boolEdges[e + 1] == true)
             {
-                Vector4 clip0 = processvertices[e];
-                Vector4 clip1 = processvertices[e + 1];
+                Vector4 clip0 = processEdges[e];
+                Vector4 clip1 = processEdges[e + 1];
 
-                Vector2 screen0 = ConvertClipToScreen(clip0);
-                Vector2 screen1 = ConvertClipToScreen(clip1);
+                Vector3 ndc0 = ConvertClipToNDC(clip0);
+                Vector3 ndc1 = ConvertClipToNDC(clip1);
 
-                OutEdgeVertices.Add(screen0);
-                OutEdgeVertices.Add(screen1);
+                OutEdgeVertices.Add(ndc0);
+                OutEdgeVertices.Add(ndc1);
             }
+        }
+
+        if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
+        {
+            return Vector4.zero;
         }
 
         float xmin = float.PositiveInfinity;
@@ -584,458 +518,27 @@ public class LevelLoader : MonoBehaviour
 
         for (int i = 0; i < OutEdgeVertices.Count; i++)
         {
-            Vector2 v = OutEdgeVertices[i];
+            Vector3 ndc = OutEdgeVertices[i];
 
-            if (v.x < xmin)
+            if (ndc.x < xmin)
             {
-                xmin = v.x;
+                xmin = ndc.x;
             }
-            if (v.x > xmax)
+            if (ndc.x > xmax)
             {
-                xmax = v.x;
+                xmax = ndc.x;
             }
-            if (v.y < ymin)
+            if (ndc.y < ymin)
             {
-                ymin = v.y;
+                ymin = ndc.y;
             }
-            if (v.y > ymax)
+            if (ndc.y > ymax)
             {
-                ymax = v.y;
+                ymax = ndc.y;
             }
         }
 
         return new Vector4(xmin, ymin, xmax, ymax);
-    }
-
-    public void ClipTrianglesWithRectangles(int rectangleCount, Vector4[] rectangles, TriangleMeta polygon)
-    {
-        for (int a = polygon.triangleStartIndex; a < polygon.triangleStartIndex + polygon.triangleCount; a += 3)
-        {
-            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.indices[a]]);
-            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.indices[a + 1]]);
-            Vector4 v2clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.indices[a + 2]]);
-
-            int processverticescount = 0;
-            int processtexturescount = 0;
-            int processnormalscount = 0;
-            int processboolcount = 0;
-
-            processvertices[processverticescount] = v0clip;
-            processvertices[processverticescount + 1] = v1clip;
-            processvertices[processverticescount + 2] = v2clip;
-            processverticescount += 3;
-            processtextures[processtexturescount] = LevelLists.textures[LevelLists.indices[a]];
-            processtextures[processtexturescount + 1] = LevelLists.textures[LevelLists.indices[a + 1]];
-            processtextures[processtexturescount + 2] = LevelLists.textures[LevelLists.indices[a + 2]];
-            processtexturescount += 3;
-            processnormals[processnormalscount] = LevelLists.normals[LevelLists.indices[a]];
-            processnormals[processnormalscount + 1] = LevelLists.normals[LevelLists.indices[a + 1]];
-            processnormals[processnormalscount + 2] = LevelLists.normals[LevelLists.indices[a + 2]];
-            processnormalscount += 3;
-            processbool[processboolcount] = true;
-            processbool[processboolcount + 1] = true;
-            processbool[processboolcount + 2] = true;
-            processboolcount += 3;
-
-            for (int b = 0; b < 6; b++)
-            {
-                int AddTriangles = 0;
-
-                int temporaryverticescount = 0;
-                int temporarytexturescount = 0;
-                int temporarynormalscount = 0;
-
-                for (int c = 0; c < processverticescount; c += 3)
-                {
-                    if (processbool[c] == false && processbool[c + 1] == false && processbool[c + 2] == false)
-                    {
-                        continue;
-                    }
-
-                    Vector4 v0 = processvertices[c];
-                    Vector4 v1 = processvertices[c + 1];
-                    Vector4 v2 = processvertices[c + 2];
-
-                    Vector3 uv0 = processtextures[c];
-                    Vector3 uv1 = processtextures[c + 1];
-                    Vector3 uv2 = processtextures[c + 2];
-
-                    Vector3 n0 = processnormals[c];
-                    Vector3 n1 = processnormals[c + 1];
-                    Vector3 n2 = processnormals[c + 2];
-
-                    float d0, d1, d2;
-
-                    switch (b)
-                    {
-                        case 0: // Left
-                            d0 = v0.x + v0.w;
-                            d1 = v1.x + v1.w;
-                            d2 = v2.x + v2.w;
-                            break;
-
-                        case 1: // Right
-                            d0 = v0.w - v0.x;
-                            d1 = v1.w - v1.x;
-                            d2 = v2.w - v2.x;
-                            break;
-
-                        case 2: // Bottom
-                            d0 = v0.y + v0.w;
-                            d1 = v1.y + v1.w;
-                            d2 = v2.y + v2.w;
-                            break;
-
-                        case 3: // Top
-                            d0 = v0.w - v0.y;
-                            d1 = v1.w - v1.y;
-                            d2 = v2.w - v2.y;
-                            break;
-
-                        case 4: // Near
-                            d0 = v0.z;
-                            d1 = v1.z;
-                            d2 = v2.z;
-                            break;
-
-                        case 5: // Far
-                            d0 = v0.w - v0.z;
-                            d1 = v1.w - v1.z;
-                            d2 = v2.w - v2.z;
-                            break;
-
-                        default:
-                            d0 = 0;
-                            d1 = 0;
-                            d2 = 0;
-                            break;
-                    }
-
-                    bool b0 = d0 >= 0;
-                    bool b1 = d1 >= 0;
-                    bool b2 = d2 >= 0;
-
-                    if (b0 && b1 && b2)
-                    {
-                        continue;
-                    }
-                    else if ((b0 && !b1 && !b2) || (!b0 && b1 && !b2) || (!b0 && !b1 && b2))
-                    {
-                        Vector4 inV, outV1, outV2;
-                        Vector3 inUV, outUV1, outUV2;
-                        Vector3 inN, outN1, outN2;
-                        float inD, outD1, outD2;
-
-                        if (b0)
-                        {
-                            inV = v0;
-                            inUV = uv0;
-                            inN = n0;
-                            inD = d0;
-                            outV1 = v1;
-                            outUV1 = uv1;
-                            outN1 = n1;
-                            outD1 = d1;
-                            outV2 = v2;
-                            outUV2 = uv2;
-                            outN2 = n2;
-                            outD2 = d2;
-                        }
-                        else if (b1)
-                        {
-                            inV = v1;
-                            inUV = uv1;
-                            inN = n1;
-                            inD = d1;
-                            outV1 = v2;
-                            outUV1 = uv2;
-                            outN1 = n2;
-                            outD1 = d2;
-                            outV2 = v0;
-                            outUV2 = uv0;
-                            outN2 = n0;
-                            outD2 = d0;
-                        }
-                        else
-                        {
-                            inV = v2;
-                            inUV = uv2;
-                            inN = n2;
-                            inD = d2;
-                            outV1 = v0;
-                            outUV1 = uv0;
-                            outN1 = n0;
-                            outD1 = d0;
-                            outV2 = v1;
-                            outUV2 = uv1;
-                            outN2 = n1;
-                            outD2 = d1;
-                        }
-
-                        float t1 = inD / (inD - outD1);
-                        float t2 = inD / (inD - outD2);
-
-                        temporaryvertices[temporaryverticescount] = inV;
-                        temporaryvertices[temporaryverticescount + 1] = Vector4.Lerp(inV, outV1, t1);
-                        temporaryvertices[temporaryverticescount + 2] = Vector4.Lerp(inV, outV2, t2);
-                        temporaryverticescount += 3;
-                        temporarytextures[temporarytexturescount] = inUV;
-                        temporarytextures[temporarytexturescount + 1] = Vector3.Lerp(inUV, outUV1, t1);
-                        temporarytextures[temporarytexturescount + 2] = Vector3.Lerp(inUV, outUV2, t2);
-                        temporarytexturescount += 3;
-                        temporarynormals[temporarynormalscount] = inN;
-                        temporarynormals[temporarynormalscount + 1] = Vector3.Lerp(inN, outN1, t1).normalized;
-                        temporarynormals[temporarynormalscount + 2] = Vector3.Lerp(inN, outN2, t2).normalized;
-                        temporarynormalscount += 3;
-                        processbool[c] = false;
-                        processbool[c + 1] = false;
-                        processbool[c + 2] = false;
-
-                        AddTriangles += 1;
-                    }
-                    else if ((!b0 && b1 && b2) || (b0 && !b1 && b2) || (b0 && b1 && !b2))
-                    {
-                        Vector4 inV1, inV2, outV;
-                        Vector3 inUV1, inUV2, outUV;
-                        Vector3 inN1, inN2, outN;
-                        float inD1, inD2, outD;
-
-                        if (!b0)
-                        {
-                            outV = v0;
-                            outUV = uv0;
-                            outN = n0;
-                            outD = d0;
-                            inV1 = v1;
-                            inUV1 = uv1;
-                            inN1 = n1;
-                            inD1 = d1;
-                            inV2 = v2;
-                            inUV2 = uv2;
-                            inN2 = n2;
-                            inD2 = d2;
-                        }
-                        else if (!b1)
-                        {
-                            outV = v1;
-                            outUV = uv1;
-                            outN = n1;
-                            outD = d1;
-                            inV1 = v2;
-                            inUV1 = uv2;
-                            inN1 = n2;
-                            inD1 = d2;
-                            inV2 = v0;
-                            inUV2 = uv0;
-                            inN2 = n0;
-                            inD2 = d0;
-                        }
-                        else
-                        {
-                            outV = v2;
-                            outUV = uv2;
-                            outN = n2;
-                            outD = d2;
-                            inV1 = v0;
-                            inUV1 = uv0;
-                            inN1 = n0;
-                            inD1 = d0;
-                            inV2 = v1;
-                            inUV2 = uv1;
-                            inN2 = n1;
-                            inD2 = d1;
-                        }
-
-                        float t1 = inD1 / (inD1 - outD);
-                        float t2 = inD2 / (inD2 - outD);
-
-                        Vector4 vA = Vector4.Lerp(inV1, outV, t1);
-                        Vector4 vB = Vector4.Lerp(inV2, outV, t2);
-
-                        Vector3 uvA = Vector3.Lerp(inUV1, outUV, t1);
-                        Vector3 uvB = Vector3.Lerp(inUV2, outUV, t2);
-
-                        Vector3 nA = Vector3.Lerp(inN1, outN, t1).normalized;
-                        Vector3 nB = Vector3.Lerp(inN2, outN, t2).normalized;
-
-                        temporaryvertices[temporaryverticescount] = inV1;
-                        temporaryvertices[temporaryverticescount + 1] = inV2;
-                        temporaryvertices[temporaryverticescount + 2] = vA;
-                        temporaryverticescount += 3;
-                        temporarytextures[temporarytexturescount] = inUV1;
-                        temporarytextures[temporarytexturescount + 1] = inUV2;
-                        temporarytextures[temporarytexturescount + 2] = uvA;
-                        temporarytexturescount += 3;
-                        temporarynormals[temporarynormalscount] = inN1;
-                        temporarynormals[temporarynormalscount + 1] = inN2;
-                        temporarynormals[temporarynormalscount + 2] = nA;
-                        temporarynormalscount += 3;
-                        temporaryvertices[temporaryverticescount] = vA;
-                        temporaryvertices[temporaryverticescount + 1] = inV2;
-                        temporaryvertices[temporaryverticescount + 2] = vB;
-                        temporaryverticescount += 3;
-                        temporarytextures[temporarytexturescount] = uvA;
-                        temporarytextures[temporarytexturescount + 1] = inUV2;
-                        temporarytextures[temporarytexturescount + 2] = uvB;
-                        temporarytexturescount += 3;
-                        temporarynormals[temporarynormalscount] = nA;
-                        temporarynormals[temporarynormalscount + 1] = inN2;
-                        temporarynormals[temporarynormalscount + 2] = nB;
-                        temporarynormalscount += 3;
-                        processbool[c] = false;
-                        processbool[c + 1] = false;
-                        processbool[c + 2] = false;
-
-                        AddTriangles += 2;
-                    }
-                    else
-                    {
-                        processbool[c] = false;
-                        processbool[c + 1] = false;
-                        processbool[c + 2] = false;
-                    }
-                }
-
-                if (AddTriangles > 0)
-                {
-                    for (int d = 0; d < temporaryverticescount; d += 3)
-                    {
-                        processvertices[processverticescount] = temporaryvertices[d];
-                        processvertices[processverticescount + 1] = temporaryvertices[d + 1];
-                        processvertices[processverticescount + 2] = temporaryvertices[d + 2];
-                        processverticescount += 3;
-                        processtextures[processtexturescount] = temporarytextures[d];
-                        processtextures[processtexturescount + 1] = temporarytextures[d + 1];
-                        processtextures[processtexturescount + 2] = temporarytextures[d + 2];
-                        processtexturescount += 3;
-                        processnormals[processnormalscount] = temporarynormals[d];
-                        processnormals[processnormalscount + 1] = temporarynormals[d + 1];
-                        processnormals[processnormalscount + 2] = temporarynormals[d + 2];
-                        processnormalscount += 3;
-                        processbool[processboolcount] = true;
-                        processbool[processboolcount + 1] = true;
-                        processbool[processboolcount + 2] = true;
-                        processboolcount += 3;
-                    }
-                }
-            }
-
-            for (int e = 0; e < processboolcount; e += 3)
-            {
-                if (processbool[e] == true && processbool[e + 1] == true && processbool[e + 2] == true)
-                {
-                    Vector4 clip0 = processvertices[e];
-                    Vector4 clip1 = processvertices[e + 1];
-                    Vector4 clip2 = processvertices[e + 2];
-
-                    Vector2 screen0 = ConvertClipToScreen(clip0);
-                    Vector2 screen1 = ConvertClipToScreen(clip1);
-                    Vector2 screen2 = ConvertClipToScreen(clip2);
-
-                    float xmin = float.PositiveInfinity;
-                    float ymin = float.PositiveInfinity;
-                    float xmax = float.NegativeInfinity;
-                    float ymax = float.NegativeInfinity;
-
-                    if (screen0.x < xmin)
-                    {
-                        xmin = screen0.x;
-                    }
-                    if (screen0.x > xmax)
-                    {
-                        xmax = screen0.x;
-                    }
-                    if (screen0.y < ymin)
-                    {
-                        ymin = screen0.y;
-                    }
-                    if (screen0.y > ymax)
-                    {
-                        ymax = screen0.y;
-                    }
-
-                    if (screen1.x < xmin)
-                    {
-                        xmin = screen1.x;
-                    }
-                    if (screen1.x > xmax)
-                    {
-                        xmax = screen1.x;
-                    }
-                    if (screen1.y < ymin)
-                    {
-                        ymin = screen1.y;
-                    }
-                    if (screen1.y > ymax)
-                    {
-                        ymax = screen1.y;
-                    }
-
-                    if (screen2.x < xmin)
-                    {
-                        xmin = screen2.x;
-                    }
-                    if (screen2.x > xmax)
-                    {
-                        xmax = screen2.x;
-                    }
-                    if (screen2.y < ymin)
-                    {
-                        ymin = screen2.y;
-                    }
-                    if (screen2.y > ymax)
-                    {
-                        ymax = screen2.y;
-                    }
-
-                    int combinedCount = 0;
-
-                    int combinedStart = rectWriteIndex;
-
-                    for (int f = 0; f < rectangleCount; f++)
-                    {
-                        Vector4 rectangle = rectangles[f];
-
-                        float combinedxmin = Mathf.Max(rectangle.x, xmin);
-                        float combinedymin = Mathf.Max(rectangle.y, ymin);
-                        float combinedxmax = Mathf.Min(rectangle.z, xmax);
-                        float combinedymax = Mathf.Min(rectangle.w, ymax);
-
-                        if (combinedxmin >= combinedxmax || combinedymin >= combinedymax)
-                        {
-                            continue;
-                        }
-
-                        triangleRectangles[rectWriteIndex] = new Vector4(combinedxmin, combinedymin, combinedxmax, combinedymax);
-
-                        rectWriteIndex += 1;
-
-                        combinedCount += 1;
-                    }
-
-                    if (combinedCount == 0)
-                    {
-                        continue;
-                    }
-
-                    Triangle tri = new Triangle();
-
-                    tri.v0 = clip0;
-                    tri.v1 = clip1;
-                    tri.v2 = clip2;
-                    tri.uv0 = processtextures[e];
-                    tri.uv1 = processtextures[e + 1];
-                    tri.uv2 = processtextures[e + 2];
-                    tri.n0 = processnormals[e];
-                    tri.n1 = processnormals[e + 1];
-                    tri.n2 = processnormals[e + 2];
-                    tri.rectStartIndex = combinedStart;
-                    tri.rectCount = combinedCount;
-
-                    outTriangles.Add(tri);
-                }
-            }
-        }
     }
 
     public bool CheckRadius(SectorMeta asector, Vector3 campoint)
@@ -1105,7 +608,7 @@ public class LevelLoader : MonoBehaviour
 
         for (int a = 0; a < OldSectors.Count; a++)
         {
-            Physics.IgnoreCollision(Player, CollisionSectors[OldSectors[a].sectorId], true);
+            Physics.IgnoreCollision(Player, LevelLists.collision[OldSectors[a].sectorId], true);
         }
 
         for (int b = 0; b < 4096; b++)
@@ -1134,7 +637,7 @@ public class LevelLoader : MonoBehaviour
 
                 Sectors.Add(sector);
 
-                Physics.IgnoreCollision(Player, CollisionSectors[sector.sectorId], false);
+                Physics.IgnoreCollision(Player, LevelLists.collision[sector.sectorId], false);
 
                 for (int d = sector.portalStartIndex; d < sector.portalStartIndex + sector.portalCount; d++)
                 {
@@ -1183,9 +686,7 @@ public class LevelLoader : MonoBehaviour
         ListOfSectorLists[input].Clear();
         ListOfSectorLists[output].Clear();
 
-        ArrayOfRectangleArrays[ASector.sectorId][ASector.rectangle] = new Vector4(0f, 0f, Screen.width, Screen.height);
-
-        ArrayOfPortalIdArrays[ASector.sectorId][0] = rootPortalId;
+        ArrayOfRectangleArrays[ASector.sectorId][ASector.rectangle] = new Vector4(-1.0f, -1.0f, 1.0f, 1.0f);
 
         visibleSectors[ASector.sectorId] = ASector.rectangle + 1;
 
@@ -1249,8 +750,6 @@ public class LevelLoader : MonoBehaviour
                     {
                         ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleIn;
 
-                        ArrayOfPortalIdArrays[connectedsector][nextcount] = polygon.portalId;
-
                         visibleSectors[connectedsector] = nextcount + 1;
 
                         SectorMeta ContactSector = new SectorMeta
@@ -1267,7 +766,7 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
-                    Vector4 rectangleOut = ClipEdgesWithRectangle(rectangleIn, polygon);
+                    Vector4 rectangleOut = MakeRectangleWithEdges(rectangleIn, polygon);
 
                     if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
                     {
@@ -1284,11 +783,7 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
-                    Vector4 combinedRectangle = IntersectRectangles(rectangleIn, rectangleOut);
-
-                    ArrayOfRectangleArrays[connectedsector][nextcount] = combinedRectangle;
-
-                    ArrayOfPortalIdArrays[connectedsector][nextcount] = polygon.portalId;
+                    ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleOut;
 
                     visibleSectors[connectedsector] = nextcount + 1;
 
@@ -1318,52 +813,22 @@ public class LevelLoader : MonoBehaviour
                 continue;
             }
 
+            Mesh renderMesh = LevelLists.render[a];
+
             SectorMeta sector = LevelLists.sectors[a];
 
             Vector4[] rectanglesArray = ArrayOfRectangleArrays[sector.sectorId];
 
-            int[] portalsId = ArrayOfPortalIdArrays[sector.sectorId];
+            rp.material = opaquematerial;
 
-            int mergeCount = 0;
+            rp.matProps.SetVectorArray("rectangles", rectanglesArray);
 
-            for (int b = 0; b < count; b++)
-            {
-                int portalId = portalsId[b];
+            rp.matProps.SetInt("count", count);
 
-                if (portalId == -1)
-                {
-                    continue;
-                }
+            renderMesh.RecalculateBounds();
 
-                Vector4 mergedRectangles = rectanglesArray[b];
-
-                for (int c = b + 1; c < count; c++)
-                {
-                    if (portalsId[c] == portalId)
-                    {
-                        mergedRectangles = MergeRectangles(mergedRectangles, rectanglesArray[c]);
-
-                        portalsId[c] = -1;
-                    }
-                }
-
-                merged[mergeCount] = mergedRectangles;
-
-                mergeCount += 1;
-            }
-
-            for (int d = sector.triangleStartIndex; d < sector.triangleStartIndex + sector.triangleCount; d++)
-            {
-                TriangleMeta triangles = LevelLists.triangles[d];
-
-                ClipTrianglesWithRectangles(mergeCount, merged, triangles);
-            }
+            Graphics.RenderMesh(rp, renderMesh, 0, matrixIdentity);
         }
-    }
-
-    public Vector4 MergeRectangles(Vector4 a, Vector4 b)
-    {
-        return new Vector4(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.z, b.z), Mathf.Max(a.w, b.w));
     }
 
     public bool DegenerateRectangle(Vector4 r)
@@ -1376,21 +841,6 @@ public class LevelLoader : MonoBehaviour
         return a.z < b.x || a.x > b.z || a.w < b.y || a.y > b.w;
     }
 
-    public Vector4 IntersectRectangles(Vector4 a, Vector4 b)
-    {
-        float xmin = Mathf.Max(a.x, b.x);
-        float ymin = Mathf.Max(a.y, b.y);
-        float xmax = Mathf.Min(a.z, b.z);
-        float ymax = Mathf.Min(a.w, b.w);
-
-        if (xmin >= xmax || ymin >= ymax)
-        {
-            return new Vector4(0, 0, 0, 0);
-        }
-
-        return new Vector4(xmin, ymin, xmax, ymax);
-    }
-
     public void PlayerStart()
     {
         if (LevelLists.positions.Count == 0)
@@ -1400,13 +850,28 @@ public class LevelLoader : MonoBehaviour
             return;
         }
 
-        int randomIndex = UnityEngine.Random.Range(0, LevelLists.positions.Count);
+        int randomtemporaryTriangles = UnityEngine.Random.Range(0, LevelLists.positions.Count);
 
-        StartPosition selectedPosition = LevelLists.positions[randomIndex];
+        StartPosition selectedPosition = LevelLists.positions[randomtemporaryTriangles];
 
         CurrentSector = LevelLists.sectors[selectedPosition.sectorId];
 
         Player.transform.position = new Vector3(selectedPosition.playerStart.z, selectedPosition.playerStart.y + 1.10f, selectedPosition.playerStart.x);
+    }
+
+    public void BuildObjects()
+    {
+        for (int i = 0; i < starts.Count; i++)
+        {
+            StartPosition start = new StartPosition
+            {
+                playerStart = new Vector3(starts[i].location.x / 2 * 2.5f, sectors[starts[i].sector].floorHeight / 8 * 2.5f, starts[i].location.y / 2 * 2.5f),
+
+                sectorId = starts[i].sector
+            };
+
+            LevelLists.positions.Add(start);
+        }
     }
 
     public void LoadFromFile()
@@ -1521,17 +986,21 @@ public class LevelLoader : MonoBehaviour
     {
         int portalStart = 0;
 
-        int renderStart = 0;
-
         int planeStart = 0;
 
         int portalNumber = 0;
 
         for (int i = 0; i < sectors.Count; i++)
         {
-            int portalCount = 0;
+            temporaryVertices.Clear();
 
-            int renderCount = 0;
+            temporaryTextures.Clear();
+
+            temporaryNormals.Clear();
+
+            temporaryTriangles.Clear();
+
+            int portalCount = 0;
 
             int planeCount = 0;
 
@@ -1555,25 +1024,25 @@ public class LevelLoader : MonoBehaviour
                     double V0 = sector.floorHeight / 8 * 2.5f;
                     double V1 = sector.ceilingHeight / 8 * 2.5f;
 
-                    int baseVert = LevelLists.vertices.Count;
+                    int baseVert = temporaryVertices.Count;
 
-                    int baseStartIndex = LevelLists.indices.Count;
+                    int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
-                    LevelLists.vertices.Add(new Vector3((float)Z1, (float)V0, (float)X1));
-                    LevelLists.vertices.Add(new Vector3((float)Z1, (float)V1, (float)X1));
-                    LevelLists.vertices.Add(new Vector3((float)Z0, (float)V1, (float)X0));
-                    LevelLists.vertices.Add(new Vector3((float)Z0, (float)V0, (float)X0));
+                    temporaryVertices.Add(new Vector3((float)Z1, (float)V0, (float)X1));
+                    temporaryVertices.Add(new Vector3((float)Z1, (float)V1, (float)X1));
+                    temporaryVertices.Add(new Vector3((float)Z0, (float)V1, (float)X0));
+                    temporaryVertices.Add(new Vector3((float)Z0, (float)V0, (float)X0));
 
-                    LevelLists.indices.Add(baseVert);
-                    LevelLists.indices.Add(baseVert + 1);
-                    LevelLists.indices.Add(baseVert + 2);
-                    LevelLists.indices.Add(baseVert);
-                    LevelLists.indices.Add(baseVert + 2);
-                    LevelLists.indices.Add(baseVert + 3);
+                    temporaryTriangles.Add(baseVert);
+                    temporaryTriangles.Add(baseVert + 1);
+                    temporaryTriangles.Add(baseVert + 2);
+                    temporaryTriangles.Add(baseVert);
+                    temporaryTriangles.Add(baseVert + 2);
+                    temporaryTriangles.Add(baseVert + 3);
 
-                    Vector3 v0 = LevelLists.vertices[baseVert];
-                    Vector3 v1 = LevelLists.vertices[baseVert + 1];
-                    Vector3 v2 = LevelLists.vertices[baseVert + 2];
+                    Vector3 v0 = temporaryVertices[baseVert];
+                    Vector3 v1 = temporaryVertices[baseVert + 1];
+                    Vector3 v2 = temporaryVertices[baseVert + 2];
 
                     Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
@@ -1586,28 +1055,15 @@ public class LevelLoader : MonoBehaviour
                     LeftPlane = new MathematicalPlane { normal = leftPlaneNormal, distance = leftPlaneDistance };
                     TopPlane = new MathematicalPlane { normal = topPlaneNormal, distance = topPlaneDistance };
 
-                    LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert]) / 2.5f, 3));
-                    LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, 3));
-                    LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, 3));
-                    LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, 3));
+                    temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert]) / 2.5f, 3));
+                    temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 1]) / 2.5f, 3));
+                    temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 2]) / 2.5f, 3));
+                    temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 3]) / 2.5f, 3));
 
-                    LevelLists.normals.Add(n);
-                    LevelLists.normals.Add(n);
-                    LevelLists.normals.Add(n);
-                    LevelLists.normals.Add(n);
-
-                    TriangleMeta transformedmesh = new TriangleMeta
-                    {
-                        triangleStartIndex = baseStartIndex,
-
-                        triangleCount = 6,
-
-                        collider = i,
-
-                        opaque = i
-                    };
-
-                    LevelLists.triangles.Add(transformedmesh);
+                    temporaryNormals.Add(n);
+                    temporaryNormals.Add(n);
+                    temporaryNormals.Add(n);
+                    temporaryNormals.Add(n);
 
                     MathematicalPlane plane = new MathematicalPlane
                     {
@@ -1616,8 +1072,6 @@ public class LevelLoader : MonoBehaviour
                     };
 
                     LevelLists.planes.Add(plane);
-
-                    renderCount += 1;
 
                     planeCount += 1;
                 }
@@ -1638,25 +1092,25 @@ public class LevelLoader : MonoBehaviour
                                 Ceiling = sector.ceilingHeight / 8 * 2.5f;
                             }
 
-                            int baseVert = LevelLists.vertices.Count;
+                            int baseVert = temporaryVertices.Count;
 
-                            int baseStartIndex = LevelLists.indices.Count;
+                            int baseStarttemporaryTriangles = temporaryVertices.Count;
 
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)Ceiling, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)Ceiling, (float)X0));
 
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 1);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert + 3);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 1);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert + 3);
 
-                            Vector3 v0 = LevelLists.vertices[baseVert];
-                            Vector3 v1 = LevelLists.vertices[baseVert + 1];
-                            Vector3 v2 = LevelLists.vertices[baseVert + 2];
+                            Vector3 v0 = temporaryVertices[baseVert];
+                            Vector3 v1 = temporaryVertices[baseVert + 1];
+                            Vector3 v2 = temporaryVertices[baseVert + 2];
 
                             Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
@@ -1669,28 +1123,15 @@ public class LevelLoader : MonoBehaviour
                             LeftPlane = new MathematicalPlane { normal = leftPlaneNormal, distance = leftPlaneDistance };
                             TopPlane = new MathematicalPlane { normal = topPlaneNormal, distance = topPlaneDistance };
 
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert]) / 2.5f, 3));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, 3));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, 3));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 1]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 2]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 3]) / 2.5f, 3));
 
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-
-                            TriangleMeta transformedmesh = new TriangleMeta
-                            {
-                                collider = i,
-
-                                opaque = i,
-
-                                triangleStartIndex = baseStartIndex,
-
-                                triangleCount = 6
-                            };
-
-                            LevelLists.triangles.Add(transformedmesh);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1699,8 +1140,6 @@ public class LevelLoader : MonoBehaviour
                             };
 
                             LevelLists.planes.Add(plane);
-
-                            renderCount += 1;
 
                             planeCount += 1;
                         }
@@ -1709,25 +1148,25 @@ public class LevelLoader : MonoBehaviour
                             double C0 = sector.ceilingHeight / 8 * 2.5f;
                             double C1 = sector.floorHeight / 8 * 2.5f;
 
-                            int baseVert = LevelLists.vertices.Count;
+                            int baseVert = temporaryVertices.Count;
 
-                            int baseStartIndex = LevelLists.indices.Count;
+                            int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)C1, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)C1, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)C1, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)C1, (float)X0));
 
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 1);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert + 3);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 1);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert + 3);
 
-                            Vector3 v0 = LevelLists.vertices[baseVert];
-                            Vector3 v1 = LevelLists.vertices[baseVert + 1];
-                            Vector3 v2 = LevelLists.vertices[baseVert + 2];
+                            Vector3 v0 = temporaryVertices[baseVert];
+                            Vector3 v1 = temporaryVertices[baseVert + 1];
+                            Vector3 v2 = temporaryVertices[baseVert + 2];
 
                             Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
@@ -1740,28 +1179,15 @@ public class LevelLoader : MonoBehaviour
                             LeftPlane = new MathematicalPlane { normal = leftPlaneNormal, distance = leftPlaneDistance };
                             TopPlane = new MathematicalPlane { normal = topPlaneNormal, distance = topPlaneDistance };
 
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert]) / 2.5f, 3));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, 3));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, 3));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 1]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 2]) / 2.5f, 3));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 3]) / 2.5f, 3));
 
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-
-                            TriangleMeta transformedmesh = new TriangleMeta
-                            {
-                                collider = i,
-
-                                opaque = i,
-
-                                triangleStartIndex = baseStartIndex,
-
-                                triangleCount = 6
-                            };
-
-                            LevelLists.triangles.Add(transformedmesh);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1770,8 +1196,6 @@ public class LevelLoader : MonoBehaviour
                             };
 
                             LevelLists.planes.Add(plane);
-
-                            renderCount += 1;
 
                             planeCount += 1;
                         }
@@ -1797,7 +1221,7 @@ public class LevelLoader : MonoBehaviour
 
                         int baseVert = LevelLists.vertices.Count;
 
-                        int baseStartIndex = LevelLists.edges.Count;
+                        int baseStarttemporaryTriangles = LevelLists.edges.Count;
 
                         LevelLists.vertices.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
                         LevelLists.vertices.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
@@ -1819,16 +1243,6 @@ public class LevelLoader : MonoBehaviour
 
                         Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
-                        LevelLists.textures.Add(Vector3.zero);
-                        LevelLists.textures.Add(Vector3.zero);
-                        LevelLists.textures.Add(Vector3.zero);
-                        LevelLists.textures.Add(Vector3.zero);
-
-                        LevelLists.normals.Add(Vector3.zero);
-                        LevelLists.normals.Add(Vector3.zero);
-                        LevelLists.normals.Add(Vector3.zero);
-                        LevelLists.normals.Add(Vector3.zero);
-
                         PortalMeta transformedportal = new PortalMeta
                         {
                             plane = LevelLists.planes.Count,
@@ -1837,7 +1251,7 @@ public class LevelLoader : MonoBehaviour
 
                             connectedSectorId = wall,
 
-                            edgeStartIndex = baseStartIndex,
+                            edgeStartIndex = baseStarttemporaryTriangles,
 
                             edgeCount = 8,
 
@@ -1876,25 +1290,25 @@ public class LevelLoader : MonoBehaviour
                                 Floor = sectors[wall].floorHeight / 8 * 2.5f;
                             }
 
-                            int baseVert = LevelLists.vertices.Count;
+                            int baseVert = temporaryVertices.Count;
 
-                            int baseStartIndex = LevelLists.indices.Count;
+                            int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)Floor, (float)X0));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)F0, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)Floor, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)F0, (float)X0));
 
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 1);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert + 3);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 1);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert + 3);
 
-                            Vector3 v0 = LevelLists.vertices[baseVert];
-                            Vector3 v1 = LevelLists.vertices[baseVert + 1];
-                            Vector3 v2 = LevelLists.vertices[baseVert + 2];
+                            Vector3 v0 = temporaryVertices[baseVert];
+                            Vector3 v1 = temporaryVertices[baseVert + 1];
+                            Vector3 v2 = temporaryVertices[baseVert + 2];
 
                             Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
@@ -1907,28 +1321,15 @@ public class LevelLoader : MonoBehaviour
                             LeftPlane = new MathematicalPlane { normal = leftPlaneNormal, distance = leftPlaneDistance };
                             TopPlane = new MathematicalPlane { normal = topPlaneNormal, distance = topPlaneDistance };
 
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert]) / 2.5f, 2));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, 2));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, 2));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 1]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 2]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 3]) / 2.5f, 2));
 
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-
-                            TriangleMeta transformedmesh = new TriangleMeta
-                            {
-                                collider = i,
-
-                                opaque = i,
-
-                                triangleStartIndex = baseStartIndex,
-
-                                triangleCount = 6
-                            };
-
-                            LevelLists.triangles.Add(transformedmesh);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -1937,8 +1338,6 @@ public class LevelLoader : MonoBehaviour
                             };
 
                             LevelLists.planes.Add(plane);
-
-                            renderCount += 1;
 
                             planeCount += 1;
                         }
@@ -1947,25 +1346,25 @@ public class LevelLoader : MonoBehaviour
                             double F0 = sector.floorHeight / 8 * 2.5f;
                             double F1 = sector.ceilingHeight / 8 * 2.5f;
 
-                            int baseVert = LevelLists.vertices.Count;
+                            int baseVert = temporaryVertices.Count;
 
-                            int baseStartIndex = LevelLists.indices.Count;
+                            int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z1, (float)F1, (float)X1));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)F1, (float)X0));
-                            LevelLists.vertices.Add(new Vector3((float)Z0, (float)F0, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z1, (float)F1, (float)X1));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)F1, (float)X0));
+                            temporaryVertices.Add(new Vector3((float)Z0, (float)F0, (float)X0));
 
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 1);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert);
-                            LevelLists.indices.Add(baseVert + 2);
-                            LevelLists.indices.Add(baseVert + 3);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 1);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert);
+                            temporaryTriangles.Add(baseVert + 2);
+                            temporaryTriangles.Add(baseVert + 3);
 
-                            Vector3 v0 = LevelLists.vertices[baseVert];
-                            Vector3 v1 = LevelLists.vertices[baseVert + 1];
-                            Vector3 v2 = LevelLists.vertices[baseVert + 2];
+                            Vector3 v0 = temporaryVertices[baseVert];
+                            Vector3 v1 = temporaryVertices[baseVert + 1];
+                            Vector3 v2 = temporaryVertices[baseVert + 2];
 
                             Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
@@ -1978,28 +1377,15 @@ public class LevelLoader : MonoBehaviour
                             LeftPlane = new MathematicalPlane { normal = leftPlaneNormal, distance = leftPlaneDistance };
                             TopPlane = new MathematicalPlane { normal = topPlaneNormal, distance = topPlaneDistance };
 
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert]) / 2.5f, 2));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 1]) / 2.5f, 2));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 2]) / 2.5f, 2));
-                            LevelLists.textures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, LevelLists.vertices[baseVert + 3]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 1]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 1]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 2]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 2]) / 2.5f, 2));
+                            temporaryTextures.Add(new Vector3(GetPlaneSignedDistanceToPoint(LeftPlane, temporaryVertices[baseVert + 3]) / 2.5f, GetPlaneSignedDistanceToPoint(TopPlane, temporaryVertices[baseVert + 3]) / 2.5f, 2));
 
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-                            LevelLists.normals.Add(n);
-
-                            TriangleMeta transformedmesh = new TriangleMeta
-                            {
-                                collider = i,
-
-                                opaque = i,
-
-                                triangleStartIndex = baseStartIndex,
-
-                                triangleCount = 6
-                            };
-
-                            LevelLists.triangles.Add(transformedmesh);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
+                            temporaryNormals.Add(n);
 
                             MathematicalPlane plane = new MathematicalPlane
                             {
@@ -2008,8 +1394,6 @@ public class LevelLoader : MonoBehaviour
                             };
 
                             LevelLists.planes.Add(plane);
-
-                            renderCount += 1;
 
                             planeCount += 1;
                         }
@@ -2019,10 +1403,10 @@ public class LevelLoader : MonoBehaviour
 
             if (sector.floorHeight != sector.ceilingHeight)
             {
-                floorverts.Clear();
-                ceilingverts.Clear();
-                flooruvs.Clear();
-                ceilinguvs.Clear();
+                floorVertices.Clear();
+                ceilingVertices.Clear();
+                floorTextures.Clear();
+                ceilingTextures.Clear();
 
                 float tinyNumber = 1e-6f;
 
@@ -2036,19 +1420,19 @@ public class LevelLoader : MonoBehaviour
                     float OX = (float)X / 2.5f * -1;
                     float OY = (float)Z / 2.5f;
 
-                    floorverts.Add(new Vector3((float)Z, (float)YF, (float)X));
-                    ceilingverts.Add(new Vector3((float)Z, (float)YC, (float)X));
-                    flooruvs.Add(new Vector3(OY, OX, 0));
-                    ceilinguvs.Add(new Vector3(OY, OX, 1));
+                    floorVertices.Add(new Vector3((float)Z, (float)YF, (float)X));
+                    ceilingVertices.Add(new Vector3((float)Z, (float)YC, (float)X));
+                    floorTextures.Add(new Vector3(OY, OX, 0));
+                    ceilingTextures.Add(new Vector3(OY, OX, 1));
                 }
 
-                floortri.Clear();
+                floorTriangles.Clear();
 
-                for (int e = 0; e < floorverts.Count - 2; e++)
+                for (int e = 0; e < floorVertices.Count - 2; e++)
                 {
-                    Vector3 v0 = floorverts[0];
-                    Vector3 v1 = floorverts[e + 1];
-                    Vector3 v2 = floorverts[e + 2];
+                    Vector3 v0 = floorVertices[0];
+                    Vector3 v1 = floorVertices[e + 1];
+                    Vector3 v2 = floorVertices[e + 2];
 
                     Vector3 e0 = v1 - v0;
                     Vector3 e1 = v2 - v1;
@@ -2066,21 +1450,21 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
-                    floortri.Add(0);
-                    floortri.Add(e + 1);
-                    floortri.Add(e + 2);
+                    floorTriangles.Add(0);
+                    floorTriangles.Add(e + 1);
+                    floorTriangles.Add(e + 2);
                 }
 
-                ceilingverts.Reverse();
-                ceilinguvs.Reverse();
+                ceilingVertices.Reverse();
+                ceilingTextures.Reverse();
 
-                ceilingtri.Clear();
+                ceilingTriangles.Clear();
 
-                for (int e = 0; e < ceilingverts.Count - 2; e++)
+                for (int e = 0; e < ceilingVertices.Count - 2; e++)
                 {
-                    Vector3 v0 = ceilingverts[0];
-                    Vector3 v1 = ceilingverts[e + 1];
-                    Vector3 v2 = ceilingverts[e + 2];
+                    Vector3 v0 = ceilingVertices[0];
+                    Vector3 v1 = ceilingVertices[e + 1];
+                    Vector3 v2 = ceilingVertices[e + 2];
 
                     Vector3 e0 = v1 - v0;
                     Vector3 e1 = v2 - v1;
@@ -2098,53 +1482,40 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
-                    ceilingtri.Add(0);
-                    ceilingtri.Add(e + 1);
-                    ceilingtri.Add(e + 2);
+                    ceilingTriangles.Add(0);
+                    ceilingTriangles.Add(e + 1);
+                    ceilingTriangles.Add(e + 2);
                 }
 
-                int baseFloor = LevelLists.vertices.Count;
+                int baseFloor = temporaryVertices.Count;
 
-                int floorStartIndex = LevelLists.indices.Count;
+                int floorStarttemporaryTriangles = temporaryTriangles.Count;
 
-                for (int e = 0; e < floorverts.Count; e++)
+                for (int e = 0; e < floorVertices.Count; e++)
                 {
-                    LevelLists.vertices.Add(floorverts[e]);
+                    temporaryVertices.Add(floorVertices[e]);
                 }
 
-                for (int e = 0; e < flooruvs.Count; e++)
+                for (int e = 0; e < floorTextures.Count; e++)
                 {
-                    LevelLists.textures.Add(flooruvs[e]);
+                    temporaryTextures.Add(floorTextures[e]);
                 }
 
-                for (int e = 0; e < floortri.Count; e++)
+                for (int e = 0; e < floorTriangles.Count; e++)
                 {
-                    LevelLists.indices.Add(baseFloor + floortri[e]);
+                    temporaryTriangles.Add(baseFloor + floorTriangles[e]);
                 }
 
-                Vector3 f0 = floorverts[floortri[0]];
-                Vector3 f1 = floorverts[floortri[1]];
-                Vector3 f2 = floorverts[floortri[2]];
+                Vector3 f0 = floorVertices[floorTriangles[0]];
+                Vector3 f1 = floorVertices[floorTriangles[1]];
+                Vector3 f2 = floorVertices[floorTriangles[2]];
 
                 Vector3 f = Vector3.Cross(f1 - f0, f2 - f0).normalized;
 
-                for (int e = 0; e < floorverts.Count; e++)
+                for (int e = 0; e < floorVertices.Count; e++)
                 {
-                    LevelLists.normals.Add(f);
+                    temporaryNormals.Add(f);
                 }
-
-                TriangleMeta transformedfloormesh = new TriangleMeta
-                {
-                    collider = i,
-
-                    opaque = i,
-
-                    triangleStartIndex = floorStartIndex,
-
-                    triangleCount = floortri.Count
-                };
-
-                LevelLists.triangles.Add(transformedfloormesh);
 
                 MathematicalPlane floorPlane = new MathematicalPlane
                 {
@@ -2154,52 +1525,37 @@ public class LevelLoader : MonoBehaviour
 
                 LevelLists.planes.Add(floorPlane);
 
-                renderCount += 1;
-
                 planeCount += 1;
 
-                int baseCeiling = LevelLists.vertices.Count;
+                int baseCeiling = temporaryVertices.Count;
 
-                int ceilingStartIndex = LevelLists.indices.Count;
+                int ceilingStartIndex = temporaryTriangles.Count;
 
-                for (int e = 0; e < ceilingverts.Count; e++)
+                for (int e = 0; e < ceilingVertices.Count; e++)
                 {
-                    LevelLists.vertices.Add(ceilingverts[e]);
+                    temporaryVertices.Add(ceilingVertices[e]);
                 }
 
-                for (int e = 0; e < ceilinguvs.Count; e++)
+                for (int e = 0; e < ceilingTextures.Count; e++)
                 {
-                    LevelLists.textures.Add(ceilinguvs[e]);
+                    temporaryTextures.Add(ceilingTextures[e]);
                 }
 
-                for (int e = 0; e < ceilingtri.Count; e++)
+                for (int e = 0; e < ceilingTriangles.Count; e++)
                 {
-                    LevelLists.indices.Add(baseCeiling + ceilingtri[e]);
+                    temporaryTriangles.Add(baseCeiling + ceilingTriangles[e]);
                 }
 
-                Vector3 c0 = ceilingverts[ceilingtri[0]];
-                Vector3 c1 = ceilingverts[ceilingtri[1]];
-                Vector3 c2 = ceilingverts[ceilingtri[2]];
+                Vector3 c0 = ceilingVertices[ceilingTriangles[0]];
+                Vector3 c1 = ceilingVertices[ceilingTriangles[1]];
+                Vector3 c2 = ceilingVertices[ceilingTriangles[2]];
 
                 Vector3 c = Vector3.Cross(c1 - c0, c2 - c0).normalized;
 
-                for (int e = 0; e < ceilingverts.Count; e++)
+                for (int e = 0; e < ceilingVertices.Count; e++)
                 {
-                    LevelLists.normals.Add(c);
+                    temporaryNormals.Add(c);
                 }
-
-                TriangleMeta transformedceilingmesh = new TriangleMeta
-                {
-                    collider = i,
-
-                    opaque = i,
-
-                    triangleStartIndex = ceilingStartIndex,
-
-                    triangleCount = ceilingtri.Count
-                };
-
-                LevelLists.triangles.Add(transformedceilingmesh);
 
                 MathematicalPlane ceilingPlane = new MathematicalPlane
                 {
@@ -2208,8 +1564,6 @@ public class LevelLoader : MonoBehaviour
                 };
 
                 LevelLists.planes.Add(ceilingPlane);
-
-                renderCount += 1;
 
                 planeCount += 1;
             }
@@ -2221,82 +1575,44 @@ public class LevelLoader : MonoBehaviour
                 portalStartIndex = portalStart,
                 portalCount = portalCount,
                 planeStartIndex = planeStart,
-                planeCount = planeCount,
-                triangleStartIndex = renderStart,
-                triangleCount = renderCount
+                planeCount = planeCount
             };
 
             LevelLists.sectors.Add(sectorMeta);
 
-            portalStart += portalCount;
+            Mesh renderMesh = new Mesh();
 
-            planeStart += planeCount;
+            renderMesh.SetVertices(temporaryVertices);
 
-            renderStart += renderCount;
-        }
+            renderMesh.SetUVs(0, temporaryTextures);
 
-        Debug.Log("Level built successfully!");
-    }
+            renderMesh.SetNormals(temporaryNormals);
 
-    public void BuildObjects()
-    {
-        for (int i = 0; i < starts.Count; i++)
-        {
-            StartPosition start = new StartPosition
-            {
-                playerStart = new Vector3(starts[i].location.x / 2 * 2.5f, sectors[starts[i].sector].floorHeight / 8 * 2.5f, starts[i].location.y / 2 * 2.5f),
+            renderMesh.SetTriangles(temporaryTriangles, 0);
 
-                sectorId = starts[i].sector
-            };
+            LevelLists.render.Add(renderMesh);
 
-            LevelLists.positions.Add(start);
-        }
-    }
+            Mesh collisionMesh = new Mesh();
 
-    public void BuildColliders()
-    {
-        for (int i = 0; i < LevelLists.sectors.Count; i++)
-        {
-            colliderVertices.Clear();
+            collisionMesh.SetVertices(temporaryVertices);
 
-            colliderTriangles.Clear();
-
-            int triangleCount = 0;
-
-            for (int e = LevelLists.sectors[i].triangleStartIndex; e < LevelLists.sectors[i].triangleStartIndex + LevelLists.sectors[i].triangleCount; e++)
-            {
-                if (LevelLists.triangles[e].collider != -1)
-                {
-                    for (int f = LevelLists.triangles[e].triangleStartIndex; f < LevelLists.triangles[e].triangleStartIndex + LevelLists.triangles[e].triangleCount; f += 3)
-                    {
-                        colliderVertices.Add(LevelLists.vertices[LevelLists.indices[f]]);
-                        colliderVertices.Add(LevelLists.vertices[LevelLists.indices[f + 1]]);
-                        colliderVertices.Add(LevelLists.vertices[LevelLists.indices[f + 2]]);
-                        colliderTriangles.Add(triangleCount);
-                        colliderTriangles.Add(triangleCount + 1);
-                        colliderTriangles.Add(triangleCount + 2);
-                        triangleCount += 3;
-                    }
-                }
-            }
-
-            Mesh combinedmesh = new Mesh();
-
-            CollisionMesh.Add(combinedmesh);
-
-            combinedmesh.SetVertices(colliderVertices);
-
-            combinedmesh.SetTriangles(colliderTriangles, 0);
+            collisionMesh.SetTriangles(temporaryTriangles, 0);
 
             GameObject meshObject = new GameObject("Collision " + i);
 
             MeshCollider meshCollider = meshObject.AddComponent<MeshCollider>();
 
-            meshCollider.sharedMesh = combinedmesh;
+            meshCollider.sharedMesh = collisionMesh;
 
-            CollisionSectors.Add(meshCollider);
+            LevelLists.collision.Add(meshCollider);
 
             meshObject.transform.SetParent(CollisionObjects.transform);
+
+            portalStart += portalCount;
+
+            planeStart += planeCount;
         }
+
+        Debug.Log("Level built successfully!");
     }
 }
