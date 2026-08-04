@@ -48,7 +48,7 @@ This produces a reduced NDC space AABB for each portal.
 
 
 
-# 4\. Guaranteed correct AABBs
+## 4\. Guaranteed correct AABBs
 
 
 
@@ -100,7 +100,7 @@ This project uses code derived from VisPortals by Bunny83.
 
 
 
-VisPortals by Bunny83  
+VisPortals by Bunny83
 
 License: MIT
 
