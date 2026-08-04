@@ -74,9 +74,9 @@ Download the project as a zip file and load the scene in a Unity editor.
 
 Download map-clear.txt from Bisqwit's tutorial video and place it in the project's Resources folder or use the included Two Hallways level.
 
-Toggle Debug Mode to visualize portal rectangles.
-
 Press Play and the renderer will automatically load the level, build geometry, and begin portal rendering.
+
+Toggle Debug Mode to visualize portal rectangles.
 
 
 
@@ -86,9 +86,7 @@ Press Play and the renderer will automatically load the level, build geometry, a
 
 [Watch Bisqwit's portal rendering tutorial video](https://www.youtube.com/watch?v=HQYsFshbkYw)
 
-
-
-[Watch NDC space AABB portals in clip space video.](https://www.youtube.com/watch?v=zMMPdxAyXXU)
+[Watch NDC space AABB portals in clip space video](https://www.youtube.com/watch?v=zMMPdxAyXXU)
 
 
 

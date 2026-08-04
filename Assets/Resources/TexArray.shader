@@ -57,7 +57,7 @@ Shader "Custom/TexArray"
 
                 bool insideAny = false;
 
-                for (uint a = 0; a < count; a++)
+                for (int a = 0; a < count; a++)
                 {
                     float4 ndcRect = rectangles[a];
 
