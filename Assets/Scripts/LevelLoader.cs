@@ -199,11 +199,6 @@ public class LevelLoader : MonoBehaviour
         {
             ListOfSectorLists.Add(new List<SectorMeta>());
         }
-
-        for (int i = 0; i < LevelLists.sectors.Count; i++)
-        {
-            LevelLists.collision[i].SetActive(false);
-        }
     }
 
     void Update()
