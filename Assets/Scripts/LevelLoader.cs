@@ -82,7 +82,6 @@ public class LevelLoader : MonoBehaviour
     Vector3 CamPoint;
     SectorMeta CurrentSector;
     List<SectorMeta> Sectors = new List<SectorMeta>();
-    List<SectorMeta> OldSectors = new List<SectorMeta>();
     List<Vector3> OutEdgeVertices = new List<Vector3>();
     bool radius;
     bool check;
@@ -96,6 +95,7 @@ public class LevelLoader : MonoBehaviour
     Matrix4x4 viewProjection;
     List<Vector4> debugRectangles = new List<Vector4>();
     int[] visibleSectors;
+    int[] contactingSectors;
     Texture2D linetexture;
     List<Vector3> temporaryVertices = new List<Vector3>();
     List<Vector3> temporaryNormals = new List<Vector3>();
@@ -128,7 +128,7 @@ public class LevelLoader : MonoBehaviour
         public List<MathematicalPlane> planes = new List<MathematicalPlane>();
         public List<PortalMeta> portals = new List<PortalMeta>();
         public List<GameObject> render = new List<GameObject>();
-        public List<MeshCollider> collision = new List<MeshCollider>();
+        public List<GameObject> collision = new List<GameObject>();
         public List<SectorMeta> sectors = new List<SectorMeta>();
         public List<StartPosition> positions = new List<StartPosition>();
     }
@@ -180,6 +180,8 @@ public class LevelLoader : MonoBehaviour
 
         visibleSectors = new int[LevelLists.sectors.Count];
 
+        contactingSectors = new int[LevelLists.sectors.Count];
+
         boolEdges = new bool[128];
 
         processEdges = new Vector4[128];
@@ -200,7 +202,7 @@ public class LevelLoader : MonoBehaviour
 
         for (int i = 0; i < LevelLists.sectors.Count; i++)
         {
-            Physics.IgnoreCollision(Player, LevelLists.collision[LevelLists.sectors[i].sectorId], true);
+            LevelLists.collision[i].SetActive(false);
         }
     }
 
@@ -218,15 +220,19 @@ public class LevelLoader : MonoBehaviour
 
             CamPoint = Cam.transform.position;
 
+            Array.Clear(contactingSectors, 0, contactingSectors.Length);
+
             GetSectors(CurrentSector);
+
+            SetCollision();
 
             debugRectangles.Clear();
 
             Array.Clear(visibleSectors, 0, visibleSectors.Length);
 
-            GetPolygons(CurrentSector);
+            GetPortals(CurrentSector);
 
-            GetTriangles();
+            SetMeshes();
 
             Cam.transform.hasChanged = false;
         }
@@ -575,23 +581,6 @@ public class LevelLoader : MonoBehaviour
         return false;
     }
 
-    public bool SectorsDoNotEqual()
-    {
-        if (Sectors.Count != OldSectors.Count)
-        {
-            return true;
-        }
-
-        for (int i = 0; i < Sectors.Count; i++)
-        {
-            if (Sectors[i].sectorId != OldSectors[i].sectorId)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public void GetSectors(SectorMeta ASector)
     {
         int input = 0;
@@ -603,11 +592,6 @@ public class LevelLoader : MonoBehaviour
         ListOfSectorLists[output].Clear();
 
         ListOfSectorLists[input].Add(ASector);
-
-        for (int a = 0; a < OldSectors.Count; a++)
-        {
-            Physics.IgnoreCollision(Player, LevelLists.collision[OldSectors[a].sectorId], true);
-        }
 
         for (int b = 0; b < 4096; b++)
         {
@@ -635,7 +619,7 @@ public class LevelLoader : MonoBehaviour
 
                 Sectors.Add(sector);
 
-                Physics.IgnoreCollision(Player, LevelLists.collision[sector.sectorId], false);
+                contactingSectors[sector.sectorId] += 1;
 
                 for (int d = sector.portalStartIndex; d < sector.portalStartIndex + sector.portalCount; d++)
                 {
@@ -664,19 +648,31 @@ public class LevelLoader : MonoBehaviour
                 }
             }    
         }
+    }
 
-        if (SectorsDoNotEqual())
+    public void SetCollision()
+    {
+        for (int a = 0; a < contactingSectors.Length; a++)
         {
-            OldSectors.Clear();
+            int count = contactingSectors[a];
 
-            for (int e = 0; e < Sectors.Count; e++)
+            GameObject sectorCollide = LevelLists.collision[a];
+
+            bool shouldBeActive = false;
+
+            if (count != 0)
             {
-                OldSectors.Add(Sectors[e]);
+                shouldBeActive = true;
+            }
+
+            if (sectorCollide.activeSelf != shouldBeActive)
+            {
+                sectorCollide.SetActive(shouldBeActive);
             }
         }
     }
 
-    public void GetPolygons(SectorMeta ASector)
+    public void GetPortals(SectorMeta ASector)
     {
         int input = 0;
         int output = 1;
@@ -686,7 +682,7 @@ public class LevelLoader : MonoBehaviour
 
         ArrayOfRectangleArrays[ASector.sectorId][ASector.rectangle] = new Vector4(-1.0f, -1.0f, 1.0f, 1.0f);
 
-        visibleSectors[ASector.sectorId] = ASector.rectangle + 1;
+        visibleSectors[ASector.sectorId] += 1;
 
         ListOfSectorLists[input].Add(ASector);
 
@@ -800,7 +796,7 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    public void GetTriangles()
+    public void SetMeshes()
     {
         for (int a = 0; a < visibleSectors.Length; a++)
         {
@@ -825,9 +821,7 @@ public class LevelLoader : MonoBehaviour
                 continue;
             }
 
-            SectorMeta sector = LevelLists.sectors[a];
-
-            Vector4[] rectanglesArray = ArrayOfRectangleArrays[sector.sectorId];
+            Vector4[] rectanglesArray = ArrayOfRectangleArrays[a];
 
             materialProps.SetVectorArray("rectangles", rectanglesArray);
 
@@ -1626,7 +1620,7 @@ public class LevelLoader : MonoBehaviour
 
             meshCollider.sharedMesh = collisionMesh;
 
-            LevelLists.collision.Add(meshCollider);
+            LevelLists.collision.Add(collisionMeshObject);
 
             collisionMeshObject.transform.SetParent(CollisionObjects.transform);
 
