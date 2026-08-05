@@ -72,6 +72,7 @@ public class LevelLoader : MonoBehaviour
     List<int> floorTriangles = new List<int>();
     Material opaquematerial;
     GameObject CollisionObjects;
+    GameObject RenderObjects;
     bool[] boolEdges;
     Vector4[] processEdges;
     Vector4[] temporaryEdges;
@@ -93,7 +94,6 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> floorTextures = new List<Vector3>();
     List<Vector3> ceilingTextures = new List<Vector3>();
     Matrix4x4 viewProjection;
-    Matrix4x4 matrixIdentity;
     List<Vector4> debugRectangles = new List<Vector4>();
     int[] visibleSectors;
     Texture2D linetexture;
@@ -101,7 +101,7 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> temporaryNormals = new List<Vector3>();
     List<Vector3> temporaryTextures = new List<Vector3>();
     List<int> temporaryTriangles = new List<int>();
-    RenderParams rp;
+    MaterialPropertyBlock materialProps;
 
     [Serializable]
     public class Sector
@@ -127,7 +127,7 @@ public class LevelLoader : MonoBehaviour
         public List<int> edges = new List<int>();
         public List<MathematicalPlane> planes = new List<MathematicalPlane>();
         public List<PortalMeta> portals = new List<PortalMeta>();
-        public List<Mesh> render = new List<Mesh>();
+        public List<GameObject> render = new List<GameObject>();
         public List<MeshCollider> collision = new List<MeshCollider>();
         public List<SectorMeta> sectors = new List<SectorMeta>();
         public List<StartPosition> positions = new List<StartPosition>();
@@ -160,15 +160,13 @@ public class LevelLoader : MonoBehaviour
 
     void Start()
     {
-        rp = new RenderParams();
+        materialProps = new MaterialPropertyBlock();
 
-        rp.matProps = new MaterialPropertyBlock();
+        RenderObjects = new GameObject("Render Meshes");
 
         CollisionObjects = new GameObject("Collision Meshes");
 
         LevelLists = new TopLevelLists();
-
-        matrixIdentity = Matrix4x4.identity;
 
         LoadFromFile();
 
@@ -228,10 +226,10 @@ public class LevelLoader : MonoBehaviour
 
             GetPolygons(CurrentSector);
 
+            GetTriangles();
+
             Cam.transform.hasChanged = false;
         }
-
-        GetTriangles();
     }
 
     void Awake()
@@ -808,26 +806,34 @@ public class LevelLoader : MonoBehaviour
         {
             int count = visibleSectors[a];
 
-            if (count == 0)
+            GameObject renderObject = LevelLists.render[a];
+
+            bool shouldBeActive = false;
+
+            if (count != 0)
+            {
+                shouldBeActive = true;
+            }
+
+            if (renderObject.activeSelf != shouldBeActive)
+            {
+                renderObject.SetActive(shouldBeActive);
+            }
+
+            if (shouldBeActive == false)
             {
                 continue;
             }
-
-            Mesh renderMesh = LevelLists.render[a];
 
             SectorMeta sector = LevelLists.sectors[a];
 
             Vector4[] rectanglesArray = ArrayOfRectangleArrays[sector.sectorId];
 
-            rp.material = opaquematerial;
+            materialProps.SetVectorArray("rectangles", rectanglesArray);
 
-            rp.matProps.SetVectorArray("rectangles", rectanglesArray);
+            materialProps.SetInt("count", count);
 
-            rp.matProps.SetInt("count", count);
-
-            renderMesh.RecalculateBounds();
-
-            Graphics.RenderMesh(rp, renderMesh, 0, matrixIdentity);
+            renderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialProps);
         }
     }
 
@@ -1590,7 +1596,23 @@ public class LevelLoader : MonoBehaviour
 
             renderMesh.SetTriangles(temporaryTriangles, 0);
 
-            LevelLists.render.Add(renderMesh);
+            renderMesh.RecalculateBounds();
+
+            GameObject renderMeshObject = new GameObject("Render " + i);
+
+            MeshRenderer renderer = renderMeshObject.AddComponent<MeshRenderer>();
+
+            renderer.material = opaquematerial;
+
+            renderer.SetPropertyBlock(materialProps);
+
+            MeshFilter renderFilter = renderMeshObject.AddComponent<MeshFilter>();
+
+            renderFilter.sharedMesh = renderMesh;
+
+            LevelLists.render.Add(renderMeshObject);
+
+            renderMeshObject.transform.SetParent(RenderObjects.transform);
 
             Mesh collisionMesh = new Mesh();
 
@@ -1598,15 +1620,15 @@ public class LevelLoader : MonoBehaviour
 
             collisionMesh.SetTriangles(temporaryTriangles, 0);
 
-            GameObject meshObject = new GameObject("Collision " + i);
+            GameObject collisionMeshObject = new GameObject("Collision " + i);
 
-            MeshCollider meshCollider = meshObject.AddComponent<MeshCollider>();
+            MeshCollider meshCollider = collisionMeshObject.AddComponent<MeshCollider>();
 
             meshCollider.sharedMesh = collisionMesh;
 
             LevelLists.collision.Add(meshCollider);
 
-            meshObject.transform.SetParent(CollisionObjects.transform);
+            collisionMeshObject.transform.SetParent(CollisionObjects.transform);
 
             portalStart += portalCount;
 
