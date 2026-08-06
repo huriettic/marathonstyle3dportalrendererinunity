@@ -4,11 +4,12 @@ Shader "Custom/TexArray"
     {
         _MainTex("Tex Array", 2DArray) = "white" {}
     }
+
     SubShader
     {
         Tags { "Queue" = "Geometry" "RenderType" = "Opaque" }
 
-        Pass   
+        Pass
         {
             CGPROGRAM
             #pragma vertex vert
@@ -18,6 +19,7 @@ Shader "Custom/TexArray"
             struct appdata
             {
                 float4 vertex : POSITION;
+                float3 normal : NORMAL;
                 float3 uv : TEXCOORD0;
             };
 
@@ -27,20 +29,26 @@ Shader "Custom/TexArray"
                 float2 uv : TEXCOORD0;
                 float index : TEXCOORD1;
                 float4 clip : TEXCOORD2;
+                float3 norm : TEXCOORD3;
             };
 
             UNITY_DECLARE_TEX2DARRAY(_MainTex);
+
             float4 rectangles[32];
             int count;
 
             v2f vert(appdata v)
             {
                 v2f o;
-                float4 clipVertex = mul(UNITY_MATRIX_VP, float4(v.vertex.xyz, 1.0));
+
+                float4 clipVertex = mul(UNITY_MATRIX_VP, float4(v.vertex.xyz, 1.0f));
+
                 o.pos = clipVertex;
                 o.uv = v.uv.xy;
                 o.index = v.uv.z;
                 o.clip = clipVertex;
+                o.norm = v.normal;
+
                 return o;
             }
 
@@ -50,10 +58,11 @@ Shader "Custom/TexArray"
 
                 float2 screen;
 
-                screen.x = (ndc.x * 0.5 + 0.5) * _ScreenParams.x;
-                screen.y = (ndc.y * 0.5 + 0.5) * _ScreenParams.y;
+                screen.x = (ndc.x * 0.5f + 0.5f) * _ScreenParams.x;
 
-                float epsilon = 0.5;
+                screen.y = (ndc.y * 0.5f + 0.5f) * _ScreenParams.y;
+
+                float epsilon = 0.5f;
 
                 bool insideAny = false;
 
@@ -61,10 +70,10 @@ Shader "Custom/TexArray"
                 {
                     float4 ndcRect = rectangles[a];
 
-                    float xmin = ((ndcRect.x * 0.5 + 0.5) * _ScreenParams.x) - epsilon;
-                    float ymin = ((ndcRect.y * 0.5 + 0.5) * _ScreenParams.y) - epsilon;
-                    float xmax = ((ndcRect.z * 0.5 + 0.5) * _ScreenParams.x) + epsilon;
-                    float ymax = ((ndcRect.w * 0.5 + 0.5) * _ScreenParams.y) + epsilon;
+                    float xmin = ((ndcRect.x * 0.5f + 0.5f) * _ScreenParams.x) - epsilon;
+                    float ymin = ((ndcRect.y * 0.5f + 0.5f) * _ScreenParams.y) - epsilon;
+                    float xmax = ((ndcRect.z * 0.5f + 0.5f) * _ScreenParams.x) + epsilon;
+                    float ymax = ((ndcRect.w * 0.5f + 0.5f) * _ScreenParams.y) + epsilon;
 
                     bool inside = screen.x >= xmin && screen.x <= xmax && screen.y >= ymin && screen.y <= ymax;
 
@@ -80,10 +89,25 @@ Shader "Custom/TexArray"
                     discard;
                 }
 
-                return UNITY_SAMPLE_TEX2DARRAY(_MainTex, float3(i.uv, i.index)); 
+                fixed4 col = UNITY_SAMPLE_TEX2DARRAY(_MainTex, float3(i.uv, i.index));
+
+                float3 N = normalize(i.norm);
+
+                float3 L = normalize(_WorldSpaceLightPos0.xyz);
+
+                float NdotL = dot(N, L);
+
+                float diffuse = NdotL * 0.5f + 0.5f;
+
+                diffuse = diffuse * diffuse;
+
+                col.rgb *= diffuse;
+
+                return col;
             }
             ENDCG
         }
     }
+
     FallBack "Diffuse"
 }
