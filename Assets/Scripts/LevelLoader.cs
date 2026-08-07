@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
 using UnityEngine;
 
 [Serializable]
@@ -48,17 +49,25 @@ public class LevelLoader : MonoBehaviour
 
     public bool debug = false;
 
-    public float speed = 7f;
-    public float jumpHeight = 2f;
-    public float gravity = 5f;
-    public float sensitivity = 10f;
-    public float clampAngle = 90f;
-    public float smoothFactor = 25f;
+    public float speed = 7.0f;
+    public float jumpHeight = 2.0f;
+    public float gravity = 5.0f;
+    public float sensitivity = 0.7f;
+    public float clampAngle = 90.0f;
+    public float smoothFactor = 25.0f;
+
+    public InputActionAsset playerInput;
 
     Vector2 targetRotation;
     Vector3 targetMovement;
     Vector2 currentRotation;
     Vector3 currentForce;
+
+    InputAction moveAction;
+    InputAction lookAction;
+    InputAction jumpAction;
+    InputAction debugToggleAction;
+    InputAction quitAction;
 
     CharacterController Player;
 
@@ -235,6 +244,16 @@ public class LevelLoader : MonoBehaviour
 
     void Awake()
     {
+        moveAction = playerInput.FindAction("Move");
+
+        lookAction = playerInput.FindAction("Look");
+
+        jumpAction = playerInput.FindAction("Jump");
+
+        debugToggleAction = playerInput.FindAction("DebugToggle");
+
+        quitAction = playerInput.FindAction("Quit");
+
         linetexture = new Texture2D(1, 1);
 
         linetexture.SetPixel(0, 0, Color.white);
@@ -301,21 +320,25 @@ public class LevelLoader : MonoBehaviour
 
     public void PlayerInput()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (quitAction.triggered)
         {
             Application.Quit();
         }
-        if (Input.GetKeyDown(KeyCode.R))
+
+        if (debugToggleAction.triggered)
         {
             debug = !debug;
         }
-        if (Input.GetKeyDown(KeyCode.Space) && Player.isGrounded)
+
+        if (jumpAction.triggered && Player.isGrounded)
         {
             currentForce.y = jumpHeight;
         }
 
-        float mousex = Input.GetAxisRaw("Mouse X");
-        float mousey = Input.GetAxisRaw("Mouse Y");
+        Vector2 look = lookAction.ReadValue<Vector2>();
+
+        float mousex = look.x;
+        float mousey = look.y;
 
         targetRotation.x -= mousey * sensitivity;
         targetRotation.y += mousex * sensitivity;
@@ -327,8 +350,10 @@ public class LevelLoader : MonoBehaviour
         Cam.transform.localRotation = Quaternion.Euler(currentRotation.x, 0f, 0f);
         Player.transform.rotation = Quaternion.Euler(0f, currentRotation.y, 0f);
 
-        float horizontal = Input.GetAxisRaw("Horizontal");
-        float vertical = Input.GetAxisRaw("Vertical");
+        Vector2 move = moveAction.ReadValue<Vector2>();
+
+        float horizontal = move.x;
+        float vertical = move.y;
 
         targetMovement = (Player.transform.right * horizontal + Player.transform.forward * vertical).normalized;
 
