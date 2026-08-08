@@ -770,7 +770,6 @@ public class LevelLoader : MonoBehaviour
                         {
                             portalStartIndex = connectedstart,
                             portalCount = connectedcount,
-
                             rectangle = nextcount,
                             sectorId = connectedsector
                         };
@@ -797,6 +796,22 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
+                    bool identical = false;
+
+                    for (int i = 0; i < nextcount; i++)
+                    {
+                        if (RectanglesIdentical(ArrayOfRectangleArrays[connectedsector][i], rectangleOut))
+                        {
+                            identical = true;
+                            break;
+                        }
+                    }
+
+                    if (identical)
+                    {
+                        continue;
+                    }
+
                     ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleOut;
 
                     visibleSectors[connectedsector] = nextcount + 1;
@@ -805,7 +820,6 @@ public class LevelLoader : MonoBehaviour
                     {
                         portalStartIndex = connectedstart,
                         portalCount = connectedcount,
-
                         rectangle = nextcount,
                         sectorId = connectedsector
                     };
@@ -849,6 +863,13 @@ public class LevelLoader : MonoBehaviour
 
             renderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialProps);
         }
+    }
+
+    public bool RectanglesIdentical(Vector4 a, Vector4 b)
+    {
+        const float epsilon = 0.001f;
+
+        return Mathf.Abs(a.x - b.x) < epsilon && Mathf.Abs(a.y - b.y) < epsilon && Mathf.Abs(a.z - b.z) < epsilon && Mathf.Abs(a.w - b.w) < epsilon;
     }
 
     public bool DegenerateRectangle(Vector4 r)
