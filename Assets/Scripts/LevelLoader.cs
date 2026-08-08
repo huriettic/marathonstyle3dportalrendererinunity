@@ -791,11 +791,6 @@ public class LevelLoader : MonoBehaviour
                         continue;
                     }
 
-                    if (RectanglesDoNotOverlap(rectangleIn, rectangleOut))
-                    {
-                        continue;
-                    }
-
                     bool identical = false;
 
                     for (int i = 0; i < nextcount; i++)
@@ -875,11 +870,6 @@ public class LevelLoader : MonoBehaviour
     public bool DegenerateRectangle(Vector4 r)
     {
         return r.x >= r.z || r.y >= r.w || (r.z - r.x) < 0.001f || (r.w - r.y) < 0.001f;
-    }
-
-    public bool RectanglesDoNotOverlap(Vector4 a, Vector4 b)
-    {
-        return a.z < b.x || a.x > b.z || a.w < b.y || a.y > b.w;
     }
 
     public void PlayerStart()
