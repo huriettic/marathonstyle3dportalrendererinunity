@@ -132,8 +132,8 @@ public class LevelLoader : MonoBehaviour
     [Serializable]
     public class TopLevelLists
     {
-        public List<Vector3> vertices = new List<Vector3>();
-        public List<int> edges = new List<int>();
+        public List<Vector3> edges = new List<Vector3>();
+        public List<int> lines = new List<int>();
         public List<MathematicalPlane> planes = new List<MathematicalPlane>();
         public List<PortalMeta> portals = new List<PortalMeta>();
         public List<GameObject> render = new List<GameObject>();
@@ -374,8 +374,8 @@ public class LevelLoader : MonoBehaviour
 
         for (int a = portal.edgeStartIndex; a < portal.edgeStartIndex + portal.edgeCount; a += 2)
         {
-            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.edges[a]]);
-            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.vertices[LevelLists.edges[a + 1]]);
+            Vector4 v0clip = ConvertWorldToClip(viewProjection, LevelLists.edges[LevelLists.lines[a]]);
+            Vector4 v1clip = ConvertWorldToClip(viewProjection, LevelLists.edges[LevelLists.lines[a + 1]]);
 
             processEdges[processverticescount] = v0clip;
             processEdges[processverticescount + 1] = v1clip;
@@ -881,9 +881,9 @@ public class LevelLoader : MonoBehaviour
             return;
         }
 
-        int randomtemporaryTriangles = UnityEngine.Random.Range(0, LevelLists.positions.Count);
+        int randomIndex = UnityEngine.Random.Range(0, LevelLists.positions.Count);
 
-        StartPosition selectedPosition = LevelLists.positions[randomtemporaryTriangles];
+        StartPosition selectedPosition = LevelLists.positions[randomIndex];
 
         CurrentSector = LevelLists.sectors[selectedPosition.sectorId];
 
@@ -1057,8 +1057,6 @@ public class LevelLoader : MonoBehaviour
 
                     int baseVert = temporaryVertices.Count;
 
-                    int baseStarttemporaryTriangles = temporaryTriangles.Count;
-
                     temporaryVertices.Add(new Vector3((float)Z1, (float)V0, (float)X1));
                     temporaryVertices.Add(new Vector3((float)Z1, (float)V1, (float)X1));
                     temporaryVertices.Add(new Vector3((float)Z0, (float)V1, (float)X0));
@@ -1125,8 +1123,6 @@ public class LevelLoader : MonoBehaviour
 
                             int baseVert = temporaryVertices.Count;
 
-                            int baseStarttemporaryTriangles = temporaryVertices.Count;
-
                             temporaryVertices.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
                             temporaryVertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
                             temporaryVertices.Add(new Vector3((float)Z0, (float)C0, (float)X0));
@@ -1180,8 +1176,6 @@ public class LevelLoader : MonoBehaviour
                             double C1 = sector.floorHeight / 8 * 2.5f;
 
                             int baseVert = temporaryVertices.Count;
-
-                            int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
                             temporaryVertices.Add(new Vector3((float)Z1, (float)C1, (float)X1));
                             temporaryVertices.Add(new Vector3((float)Z1, (float)C0, (float)X1));
@@ -1250,27 +1244,27 @@ public class LevelLoader : MonoBehaviour
                             Floor = sectors[wall].floorHeight / 8 * 2.5f;
                         }
 
-                        int baseVert = LevelLists.vertices.Count;
+                        int baseVert = LevelLists.edges.Count;
 
-                        int baseStarttemporaryTriangles = LevelLists.edges.Count;
+                        int baseStartIndex = LevelLists.lines.Count;
 
-                        LevelLists.vertices.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
-                        LevelLists.vertices.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
-                        LevelLists.vertices.Add(new Vector3((float)Z0, (float)Ceiling, (float)X0));
-                        LevelLists.vertices.Add(new Vector3((float)Z0, (float)Floor, (float)X0));
+                        LevelLists.edges.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
+                        LevelLists.edges.Add(new Vector3((float)Z1, (float)Ceiling, (float)X1));
+                        LevelLists.edges.Add(new Vector3((float)Z0, (float)Ceiling, (float)X0));
+                        LevelLists.edges.Add(new Vector3((float)Z0, (float)Floor, (float)X0));
 
-                        LevelLists.edges.Add(baseVert);
-                        LevelLists.edges.Add(baseVert + 1);
-                        LevelLists.edges.Add(baseVert + 1);
-                        LevelLists.edges.Add(baseVert + 2);
-                        LevelLists.edges.Add(baseVert + 2);
-                        LevelLists.edges.Add(baseVert + 3);
-                        LevelLists.edges.Add(baseVert + 3);
-                        LevelLists.edges.Add(baseVert);
+                        LevelLists.lines.Add(baseVert);
+                        LevelLists.lines.Add(baseVert + 1);
+                        LevelLists.lines.Add(baseVert + 1);
+                        LevelLists.lines.Add(baseVert + 2);
+                        LevelLists.lines.Add(baseVert + 2);
+                        LevelLists.lines.Add(baseVert + 3);
+                        LevelLists.lines.Add(baseVert + 3);
+                        LevelLists.lines.Add(baseVert);
 
-                        Vector3 v0 = LevelLists.vertices[baseVert];
-                        Vector3 v1 = LevelLists.vertices[baseVert + 1];
-                        Vector3 v2 = LevelLists.vertices[baseVert + 2];
+                        Vector3 v0 = LevelLists.edges[baseVert];
+                        Vector3 v1 = LevelLists.edges[baseVert + 1];
+                        Vector3 v2 = LevelLists.edges[baseVert + 2];
 
                         Vector3 n = Vector3.Cross(v1 - v0, v2 - v0).normalized;
 
@@ -1282,7 +1276,7 @@ public class LevelLoader : MonoBehaviour
 
                             connectedSectorId = wall,
 
-                            edgeStartIndex = baseStarttemporaryTriangles,
+                            edgeStartIndex = baseStartIndex,
 
                             edgeCount = 8,
 
@@ -1322,8 +1316,6 @@ public class LevelLoader : MonoBehaviour
                             }
 
                             int baseVert = temporaryVertices.Count;
-
-                            int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
                             temporaryVertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
                             temporaryVertices.Add(new Vector3((float)Z1, (float)Floor, (float)X1));
@@ -1378,8 +1370,6 @@ public class LevelLoader : MonoBehaviour
                             double F1 = sector.ceilingHeight / 8 * 2.5f;
 
                             int baseVert = temporaryVertices.Count;
-
-                            int baseStarttemporaryTriangles = temporaryTriangles.Count;
 
                             temporaryVertices.Add(new Vector3((float)Z1, (float)F0, (float)X1));
                             temporaryVertices.Add(new Vector3((float)Z1, (float)F1, (float)X1));
@@ -1520,8 +1510,6 @@ public class LevelLoader : MonoBehaviour
 
                 int baseFloor = temporaryVertices.Count;
 
-                int floorStarttemporaryTriangles = temporaryTriangles.Count;
-
                 for (int e = 0; e < floorVertices.Count; e++)
                 {
                     temporaryVertices.Add(floorVertices[e]);
@@ -1559,8 +1547,6 @@ public class LevelLoader : MonoBehaviour
                 planeCount += 1;
 
                 int baseCeiling = temporaryVertices.Count;
-
-                int ceilingStartIndex = temporaryTriangles.Count;
 
                 for (int e = 0; e < ceilingVertices.Count; e++)
                 {
