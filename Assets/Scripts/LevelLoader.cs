@@ -86,7 +86,6 @@ public class LevelLoader : MonoBehaviour
     Vector4[] processEdges;
     Vector4[] temporaryEdges;
     List<List<SectorMeta>> ListOfSectorLists = new List<List<SectorMeta>>();
-    Vector4[][] ArrayOfRectangleArrays;
     Camera Cam;
     Vector3 CamPoint;
     SectorMeta CurrentSector;
@@ -110,7 +109,9 @@ public class LevelLoader : MonoBehaviour
     List<Vector3> temporaryNormals = new List<Vector3>();
     List<Vector3> temporaryTextures = new List<Vector3>();
     List<int> temporaryTriangles = new List<int>();
-    MaterialPropertyBlock materialProps;
+    RenderParams rp;
+    Vector4[] ArrayOfRectangles;
+    int[] sectorPortals;
 
     [Serializable]
     public class Sector
@@ -136,7 +137,7 @@ public class LevelLoader : MonoBehaviour
         public List<int> lines = new List<int>();
         public List<MathematicalPlane> planes = new List<MathematicalPlane>();
         public List<PortalMeta> portals = new List<PortalMeta>();
-        public List<GameObject> render = new List<GameObject>();
+        public List<Mesh> render = new List<Mesh>();
         public List<GameObject> collision = new List<GameObject>();
         public List<SectorMeta> sectors = new List<SectorMeta>();
         public List<StartPosition> positions = new List<StartPosition>();
@@ -169,7 +170,9 @@ public class LevelLoader : MonoBehaviour
 
     void Start()
     {
-        materialProps = new MaterialPropertyBlock();
+        rp = new RenderParams();
+
+        rp.matProps = new MaterialPropertyBlock();
 
         RenderObjects = new GameObject("Render Meshes");
 
@@ -197,12 +200,9 @@ public class LevelLoader : MonoBehaviour
 
         temporaryEdges = new Vector4[128];
 
-        ArrayOfRectangleArrays = new Vector4[LevelLists.sectors.Count][];
+        ArrayOfRectangles = new Vector4[LevelLists.sectors.Count * 8];
 
-        for (int i = 0; i < LevelLists.sectors.Count; i++)
-        {
-            ArrayOfRectangleArrays[i] = new Vector4[32];
-        }
+        sectorPortals = new int [LevelLists.sectors.Count * 8];
 
         for (int i = 0; i < 2; i++)
         {
@@ -236,10 +236,10 @@ public class LevelLoader : MonoBehaviour
 
             GetPortals(CurrentSector);
 
-            SetMeshes();
-
             Cam.transform.hasChanged = false;
         }
+
+        SetMeshes();
     }
 
     void Awake()
@@ -311,7 +311,7 @@ public class LevelLoader : MonoBehaviour
 
     public void CreateMaterial()
     {
-        Shader shader = Resources.Load<Shader>("TexArray");
+        Shader shader = Resources.Load<Shader>("VertexClip");
 
         opaquematerial = new Material(shader);
 
@@ -700,8 +700,8 @@ public class LevelLoader : MonoBehaviour
         ListOfSectorLists[input].Clear();
         ListOfSectorLists[output].Clear();
 
-        ArrayOfRectangleArrays[ASector.sectorId][ASector.rectangle] = new Vector4(-1.0f, -1.0f, 1.0f, 1.0f);
-
+        ArrayOfRectangles[(ASector.sectorId * 8) + ASector.rectangle] = new Vector4(-1.0f, -1.0f, 1.0f, 1.0f);
+        sectorPortals[(ASector.sectorId * 8) + visibleSectors[ASector.sectorId]] = -1;
         visibleSectors[ASector.sectorId] += 1;
 
         ListOfSectorLists[input].Add(ASector);
@@ -729,9 +729,7 @@ public class LevelLoader : MonoBehaviour
             for (int b = 0; b < ListOfSectorLists[input].Count; b++)
             {
                 SectorMeta sector = ListOfSectorLists[input][b];
-
-                Vector4 rectangleIn = ArrayOfRectangleArrays[sector.sectorId][sector.rectangle];
-
+                Vector4 rectangleIn = ArrayOfRectangles[(sector.sectorId * 8) + sector.rectangle];
                 debugRectangles.Add(rectangleIn);
 
                 for (int c = sector.portalStartIndex; c < sector.portalStartIndex + sector.portalCount; c++)
@@ -746,80 +744,78 @@ public class LevelLoader : MonoBehaviour
                     }
 
                     int connectedsector = polygon.connectedSectorId;
-
                     SectorMeta sectorpolygon = LevelLists.sectors[connectedsector];
-
                     int nextcount = visibleSectors[connectedsector];
 
-                    int connectedstart = sectorpolygon.portalStartIndex;
+                    Vector4 rectangleOut;
 
-                    int connectedcount = sectorpolygon.portalCount;
-
-                    if (nextcount >= 32)
+                    if (sector.sectorId == ASector.sectorId && SectorsContains(sectorpolygon.sectorId))
                     {
-                        continue;
+                        rectangleOut = rectangleIn;
                     }
-
-                    if (SectorsContains(sectorpolygon.sectorId))
+                    else
                     {
-                        ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleIn;
+                        rectangleOut = MakeRectangleWithEdges(rectangleIn, polygon);
 
-                        visibleSectors[connectedsector] = nextcount + 1;
-
-                        SectorMeta ContactSector = new SectorMeta
+                        if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1 || DegenerateRectangle(rectangleOut))
                         {
-                            portalStartIndex = connectedstart,
-                            portalCount = connectedcount,
-                            rectangle = nextcount,
-                            sectorId = connectedsector
-                        };
-
-                        ListOfSectorLists[output].Add(ContactSector);
-
-                        continue;
+                            continue;
+                        }
                     }
 
-                    Vector4 rectangleOut = MakeRectangleWithEdges(rectangleIn, polygon);
-
-                    if (OutEdgeVertices.Count < 6 || OutEdgeVertices.Count % 2 == 1)
-                    {
-                        continue;
-                    }
-
-                    if (DegenerateRectangle(rectangleOut))
-                    {
-                        continue;
-                    }
-
-                    bool identical = false;
+                    int portalBase = connectedsector * 8;
+                    int foundIndex = -1;
 
                     for (int i = 0; i < nextcount; i++)
                     {
-                        if (RectanglesIdentical(ArrayOfRectangleArrays[connectedsector][i], rectangleOut))
+                        if (sectorPortals[portalBase + i] == polygon.portalId)
                         {
-                            identical = true;
+                            foundIndex = i;
                             break;
                         }
                     }
 
-                    if (identical)
+                    if (foundIndex != -1)
                     {
-                        continue;
+                        int rectIndex = (connectedsector * 8) + foundIndex;
+                        Vector4 current = ArrayOfRectangles[rectIndex];
+
+                        Vector4 merged = new Vector4(
+                            MathF.Min(current.x, rectangleOut.x),
+                            MathF.Min(current.y, rectangleOut.y),
+                            MathF.Max(current.z, rectangleOut.z),
+                            MathF.Max(current.w, rectangleOut.w)
+                        );
+
+                        ArrayOfRectangles[rectIndex] = merged;
+
+                        ListOfSectorLists[output].Add(new SectorMeta
+                        {
+                            portalStartIndex = sectorpolygon.portalStartIndex,
+                            portalCount = sectorpolygon.portalCount,
+                            rectangle = foundIndex,
+                            sectorId = connectedsector
+                        });
                     }
-
-                    ArrayOfRectangleArrays[connectedsector][nextcount] = rectangleOut;
-
-                    visibleSectors[connectedsector] = nextcount + 1;
-
-                    SectorMeta VisibleSector = new SectorMeta
+                    else
                     {
-                        portalStartIndex = connectedstart,
-                        portalCount = connectedcount,
-                        rectangle = nextcount,
-                        sectorId = connectedsector
-                    };
+                        if (nextcount >= 8)
+                        {
+                            continue;
+                        }
 
-                    ListOfSectorLists[output].Add(VisibleSector);
+                        sectorPortals[portalBase + nextcount] = polygon.portalId;
+                        ArrayOfRectangles[(connectedsector * 8) + nextcount] = rectangleOut;
+                        visibleSectors[connectedsector] = nextcount + 1;
+
+                        ListOfSectorLists[output].Add(new SectorMeta
+                        {
+                            portalStartIndex = sectorpolygon.portalStartIndex,
+                            portalCount = sectorpolygon.portalCount,
+                            rectangle = nextcount,
+                            sectorId = connectedsector
+                        });
+                    }
                 }
             }
         }
@@ -831,32 +827,23 @@ public class LevelLoader : MonoBehaviour
         {
             int count = visibleSectors[a];
 
-            GameObject renderObject = LevelLists.render[a];
-
-            bool shouldBeActive = false;
-
-            if (count != 0)
-            {
-                shouldBeActive = true;
-            }
-
-            if (renderObject.activeSelf != shouldBeActive)
-            {
-                renderObject.SetActive(shouldBeActive);
-            }
-
-            if (shouldBeActive == false)
+            if (count == 0)
             {
                 continue;
             }
 
-            Vector4[] rectanglesArray = ArrayOfRectangleArrays[a];
+            Mesh renderMesh = LevelLists.render[a];
 
-            materialProps.SetVectorArray("rectangles", rectanglesArray);
+            for (int i = 0; i < count; i++)
+            {
+                Vector4 rectangle = ArrayOfRectangles[(a * 8) + i];
 
-            materialProps.SetInt("count", count);
+                rp.material = opaquematerial;
 
-            renderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialProps);
+                rp.matProps.SetVector("rectangle", rectangle);
+
+                Graphics.RenderMesh(rp, renderMesh, 0, Matrix4x4.identity);
+            }
         }
     }
 
@@ -1609,21 +1596,7 @@ public class LevelLoader : MonoBehaviour
 
             renderMesh.RecalculateBounds();
 
-            GameObject renderMeshObject = new GameObject("Render " + i);
-
-            MeshRenderer renderer = renderMeshObject.AddComponent<MeshRenderer>();
-
-            renderer.material = opaquematerial;
-
-            renderer.SetPropertyBlock(materialProps);
-
-            MeshFilter renderFilter = renderMeshObject.AddComponent<MeshFilter>();
-
-            renderFilter.sharedMesh = renderMesh;
-
-            LevelLists.render.Add(renderMeshObject);
-
-            renderMeshObject.transform.SetParent(RenderObjects.transform);
+            LevelLists.render.Add(renderMesh);
 
             Mesh collisionMesh = new Mesh();
 
